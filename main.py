@@ -143,7 +143,7 @@ def get_db_connection():
 # Load gallery from .pth file
 def load_gallery(dept_name: str, year: int, section_name: str):
     try:
-        gallery_path = f"./gallery/{dept_name}_{year}_{section_name}.pth"
+        gallery_path = f"./gallery/gallery_{dept_name}_{year}.pth"
         if not Path(gallery_path).exists():
             logger.warning(f"Gallery file {gallery_path} not found")
             return {}

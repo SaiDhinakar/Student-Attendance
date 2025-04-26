@@ -35,83 +35,6 @@ export default function AttendanceAssist() {
     }
   };
 
-  // const handleProcessImages = async () => {
-  //   if (images.length === 0) {
-  //     setError('Please upload at least one image');
-  //     return;
-  //   }
-
-  //   setIsProcessing(true);
-  //   const formData = new FormData();
-  //   images.forEach((image) => formData.append('images', image.file));
-
-  //   const attendanceForm = JSON.parse(sessionStorage.getItem('attendanceForm') || '{}');
-  //   console.log('Attendance form data:', attendanceForm);
-  //   const requiredFields = ['dept_name', 'year', 'section_name', 'subject_code', 'date', 'time'];
-  //   const missingFields = requiredFields.filter((field) => !attendanceForm[field]);
-  //   if (missingFields.length > 0) {
-  //     setError(`Missing required fields: ${missingFields.join(', ')}`);
-  //     setIsProcessing(false);
-  //     return;
-  //   }
-
-  //   // Normalize time to HH:MM
-  //   let normalizedTime = attendanceForm.time;
-  //   try {
-  //     const timeObj = new Date(`1970-01-01T${attendanceForm.time}`);
-  //     normalizedTime = timeObj.toTimeString().slice(0, 5); // e.g., "11:48"
-  //   } catch (e) {
-  //     console.warn('Invalid time format, using raw:', attendanceForm.time);
-  //   }
-
-  //   formData.append('dept_name', attendanceForm.dept_name);
-  //   formData.append('year', attendanceForm.year);
-  //   formData.append('section_name', attendanceForm.section_name);
-  //   formData.append('subject_code', attendanceForm.subject_code);
-  //   formData.append('date', attendanceForm.date);
-  //   formData.append('time', normalizedTime);
-  //   formData.append('threshold', '0.45');
-
-  //   try {
-  //     const response = await axios.post('http://localhost:8000/process-images', formData, {
-  //       headers: { 'Content-Type': 'multipart/form-data' },
-  //     });
-
-  //     console.log('Backend response:', response.data);
-
-  //     const imagesBase64 = response.data.images_base64 || [];
-
-  //     // Store only essential data without the large base64 images
-  //     sessionStorage.setItem('attendanceData', JSON.stringify({
-  //       ...attendanceForm,
-  //       time: normalizedTime,
-  //       attendance: response.data.attendance,
-  //       // Removed images_base64 to prevent QuotaExceededError
-  //     }));
-
-  //     navigate('/review', {
-  //       state: {
-  //         attendanceData: response.data.attendance || [],
-  //         images_base64: imagesBase64,
-  //         formData: { ...attendanceForm, time: normalizedTime },
-  //       },
-  //     });
-  //   } catch (error) {
-  //     console.error('Error processing images:', error);
-  //     let errorMessage = 'Failed to process images';
-  //     if (error.response) {
-  //       if (error.response.status === 404) {
-  //         errorMessage = 'Section not found. Check department, year, or section name.';
-  //       } else {
-  //         errorMessage = error.response.data?.detail || error.message;
-  //       }
-  //     }
-  //     setError(errorMessage);
-  //   } finally {
-  //     setIsProcessing(false);
-  //   }
-  // };
-
   const handleProcessImages = async () => {
     if (images.length === 0) {
       setError("Please upload at least one image");
@@ -201,6 +124,17 @@ export default function AttendanceAssist() {
       <Header />
 
       <main className="p-6 mt-16 max-w-2xl mx-auto">
+        {/* One central file input that's used everywhere */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          name="images"
+          multiple
+          accept="image/*"
+          className="hidden"
+          onChange={handleImageUpload}
+        />
+        
         {error && <p className="text-red-500 text-center mb-4">{error}</p>}
         {images.length === 0 ? (
           <div className="mt-12">
@@ -214,14 +148,6 @@ export default function AttendanceAssist() {
                   <Plus size={24} className="text-gray-500" />
                 </div>
                 <p className="text-sm text-center text-gray-600 font-medium">Upload 1 or more photos of the class</p>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleImageUpload}
-                />
               </div>
               <div className="w-32 h-40 border border-gray-300 bg-gray-50 absolute right-8 transform rotate-6 shadow-md"></div>
             </div>
