@@ -856,6 +856,17 @@ async def submit_attendance(
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
     
 
+@app.get("/attendance")
+async def get_attendance_alt(
+    dept_name: Optional[str] = None,
+    year: Optional[int] = None,
+    section_name: Optional[str] = None,
+    subject_code: Optional[str] = None,
+    date: Optional[str] = None
+):
+    """Alternative endpoint for GET /attendance that redirects to get-attendance functionality"""
+    return await get_attendance(dept_name, year, section_name, subject_code, date)
+
 @app.get("/get-attendance")
 async def get_attendance(
     dept_name: Optional[str] = None,

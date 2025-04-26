@@ -22,8 +22,9 @@ export default function AttendanceReport() {
   const [years, setYears] = useState([]);
   const [sections, setSections] = useState([]);
   const [error, setError] = useState(null);
-  const [isFilterModalOpen, setIsFilterModalOpen] = useState(true);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false); // Changed to false to show content by default
   const [formData, setFormData] = useState({ dept_name: "", date: "" });
+  const [debug, setDebug] = useState({ apiCalled: false, dataReceived: false, recordCount: 0 });
 
   // Fetch departments on mount and load form data from sessionStorage
   useEffect(() => {
@@ -37,26 +38,107 @@ export default function AttendanceReport() {
       });
     }
 
+    // Fetch departments first
     axios
       .get("http://localhost:8000/departments")
-      .then((response) => setDepartments(response.data))
-      .catch((err) => setError("Failed to fetch departments"));
+      .then((response) => {
+        console.log("Departments loaded:", response.data);
+        setDepartments(response.data);
+        
+        // After departments are loaded, try to fetch attendance
+        fetchInitialAttendance();
+      })
+      .catch((err) => {
+        console.error("Failed to fetch departments:", err);
+        setError("Failed to fetch departments");
+      });
   }, []);
+
+  // Function to fetch initial attendance data
+  const fetchInitialAttendance = async () => {
+    try {
+      console.log("Fetching initial attendance data");
+      const response = await axios.get("http://localhost:8000/attendance");
+      
+      console.log("Initial attendance data:", response.data);
+      
+      if (response.data.attendance && response.data.attendance.length > 0) {
+        processAttendanceData(response.data.attendance);
+      } else {
+        console.log("No initial attendance data found");
+        setAttendanceData([]);
+      }
+    } catch (err) {
+      console.error("Error fetching initial attendance:", err);
+      setError("Could not load attendance data. Please try again.");
+    }
+  };
+
+  // Function to process attendance data
+  const processAttendanceData = (attendanceRecords) => {
+    // Process the attendance data
+    const processedData = [];
+    const uniquePeriods = {};
+    
+    attendanceRecords.forEach(record => {
+      const key = `${record.date}-${record.subject_code}-${record.start_time}-${record.end_time}`;
+      
+      if (!uniquePeriods[key]) {
+        uniquePeriods[key] = {
+          timetable_id: key,
+          date: record.date,
+          subject_code: record.subject_code,
+          subject_name: record.subject_name,
+          section_name: record.section_name,
+          start_time: record.start_time,
+          end_time: record.end_time,
+          records: []
+        };
+        processedData.push(uniquePeriods[key]);
+      }
+      
+      uniquePeriods[key].records.push(record);
+    });
+    
+    console.log("Processed attendance data:", processedData);
+    setAttendanceData(processedData);
+    
+    // Set all periods to expanded by default
+    const newExpandedPeriods = {};
+    processedData.forEach(period => {
+      newExpandedPeriods[period.timetable_id] = true;
+    });
+    setExpandedPeriods(newExpandedPeriods);
+    
+    // Update debug state
+    setDebug(prev => ({
+      ...prev, 
+      dataReceived: true,
+      recordCount: attendanceRecords.length
+    }));
+  };
 
   // Fetch years when dept_name changes
   useEffect(() => {
     if (filters.dept_name) {
       axios
         .get(`http://localhost:8000/years/${filters.dept_name}`)
-        .then((response) => setYears(response.data))
+        .then((response) => {
+          setYears(response.data);
+          // Reset dependent fields
+          setFilters((prev) => ({
+            ...prev,
+            year: "",
+            section_name: "",
+          }));
+          // Clear sections when department changes
+          setSections([]);
+        })
         .catch((err) => setError("Failed to fetch years"));
+    } else {
+      // Clear years and sections when no department is selected
       setYears([]);
       setSections([]);
-      setFilters((prev) => ({
-        ...prev,
-        year: "",
-        section_name: "",
-      }));
     }
   }, [filters.dept_name]);
 
@@ -65,10 +147,15 @@ export default function AttendanceReport() {
     if (filters.dept_name && filters.year) {
       axios
         .get(`http://localhost:8000/sections/${filters.dept_name}/${filters.year}`)
-        .then((response) => setSections(response.data))
+        .then((response) => {
+          setSections(response.data);
+          // Reset section when year changes
+          setFilters((prev) => ({ ...prev, section_name: "" }));
+        })
         .catch((err) => setError("Failed to fetch sections"));
+    } else if (filters.dept_name) {
+      // Clear sections when no year is selected
       setSections([]);
-      setFilters((prev) => ({ ...prev, section_name: "" }));
     }
   }, [filters.dept_name, filters.year]);
 
@@ -87,71 +174,121 @@ export default function AttendanceReport() {
     setError(null);
   };
 
+  // Add a useEffect to monitor the filters state for debugging purposes
+  useEffect(() => {
+    console.log("Current filters:", filters);
+  }, [filters]);
+
   const handleApplyFilters = async () => {
-    if (
-      !filters.dept_name ||
-      !filters.year ||
-      !filters.section_name ||
-      !filters.date
-    ) {
-      setError("Please fill all filter fields");
-      return;
-    }
-
     try {
-      // Format the date for the API
-      const formattedDate = filters.date.toLocaleDateString("en-US", {
-        month: "2-digit",
-        day: "2-digit",
-        year: "numeric",
-      });
-
-      const params = {
-        dept_name: filters.dept_name,
-        year: parseInt(filters.year, 10),
-        section_name: filters.section_name,
-        date: formattedDate,
-      };
-
-      const response = await axios.get("http://localhost:8000/get-attendance", {
+      console.log("Applying filters:", filters);
+      setError(null);
+      setDebug(prev => ({ ...prev, apiCalled: true }));
+      
+      // Construct query parameters
+      const params = {};
+      
+      if (filters.dept_name) {
+        params.dept_name = filters.dept_name;
+      }
+      
+      if (filters.year) {
+        params.year = parseInt(filters.year, 10);
+      }
+      
+      if (filters.section_name) {
+        params.section_name = filters.section_name;
+      }
+      
+      if (filters.date) {
+        // Format the date for the API
+        params.date = filters.date.toLocaleDateString("en-US", {
+          month: "2-digit",
+          day: "2-digit",
+          year: "numeric",
+        });
+      }
+      
+      console.log("Sending request with params:", params);
+      
+      // Make the API call using axios
+      const response = await axios.get("http://localhost:8000/attendance", {
         params,
       });
-
-      // Group attendance by timetable_id
-      const groupedData = response.data.attendance.reduce((acc, record) => {
-        const key = record.timetable_id;
-        if (!acc[key]) {
-          acc[key] = {
-            timetable_id: record.timetable_id,
+      console.log("API Response received:", response.data);
+      
+      
+      // Check if we have any attendance records - direct access to attendance array
+      const attendanceRecords = response.data.attendance || [];
+      
+      if (attendanceRecords.length === 0) {
+        console.log("No attendance data found");
+        setAttendanceData([]);
+        setError("No attendance records found for the selected filters");
+        return;
+      }
+      
+      console.log(`Found ${attendanceRecords.length} attendance records`);
+      
+      // Update debug state
+      setDebug(prev => ({
+        ...prev, 
+        dataReceived: true,
+        recordCount: attendanceRecords.length
+      }));
+      
+      // Update UI with department and date info
+      setFormData({
+        dept_name: filters.dept_name || "All Departments",
+        date: params.date || "All Dates",
+      });
+      
+      // Group the attendance by unique combinations
+      const uniquePeriods = {};
+      
+      attendanceRecords.forEach(record => {
+        // Create composite key using subject, date, and time
+        const key = `${record.date}-${record.subject_code}-${record.start_time}-${record.end_time}`;
+        
+        // Create a new period group if it doesn't exist
+        if (!uniquePeriods[key]) {
+          uniquePeriods[key] = {
+            timetable_id: key, // Use this as a unique identifier
             subject_code: record.subject_code,
             subject_name: record.subject_name,
+            section_name: record.section_name,
+            date: record.date,
             start_time: record.start_time,
             end_time: record.end_time,
-            records: [],
+            records: []
           };
         }
-        acc[key].records.push(record);
-        return acc;
-      }, {});
-
-      const periods = Object.values(groupedData);
-      setAttendanceData(periods);
-      // Initialize all periods as expanded
-      setExpandedPeriods(
-        periods.reduce((acc, period) => {
-          acc[period.timetable_id] = true;
-          return acc;
-        }, {})
-      );
-      // Update formData with formatted date for display
-      setFormData({
-        dept_name: filters.dept_name,
-        date: formattedDate,
+        
+        // Add this attendance record to the appropriate group
+        uniquePeriods[key].records.push(record);
       });
+      
+      // Convert the grouped object to an array
+      const processedData = Object.values(uniquePeriods);
+      console.log("Processed data:", processedData);
+      
+      // Update state with the processed data
+      setAttendanceData(processedData);
+      
+      // Set all periods to expanded by default
+      const newExpandedPeriods = {};
+      processedData.forEach(period => {
+        newExpandedPeriods[period.timetable_id] = true;
+      });
+      setExpandedPeriods(newExpandedPeriods);
+      
+      // Close the filter modal
       setIsFilterModalOpen(false);
-      setError(null);
+      
     } catch (err) {
-      setError(err.response?.data?.detail || "Failed to fetch attendance");
+      console.error("Error fetching attendance data:", err);
+      setError("Failed to fetch attendance data. Please check your connection and try again.");
+      setAttendanceData([]);
     }
   };
 
@@ -169,6 +306,7 @@ export default function AttendanceReport() {
       data.push({
         Period: `Subject: ${period.subject_name} (${period.subject_code})`,
         Time: `${period.start_time} - ${period.end_time}`,
+        Date: period.date
       });
       // Add attendance records
       period.records.forEach((record) => {
@@ -188,27 +326,67 @@ export default function AttendanceReport() {
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance Report");
-    XLSX.writeFile(
-      workbook,
-      `Attendance_Report_${filters.date.toLocaleDateString("en-US", {
+
+    // Generate appropriate filename based on filters applied
+    let filename = "Attendance_Report";
+    if (filters.dept_name) filename += `_${filters.dept_name}`;
+    if (filters.date) {
+      filename += `_${filters.date.toLocaleDateString("en-US", {
         month: "2-digit",
         day: "2-digit",
         year: "numeric",
-      }).replace(/\//g, "-")}.xlsx`
-    );
+      }).replace(/\//g, "-")}`;
+    }
+    filename += ".xlsx";
+
+    XLSX.writeFile(workbook, filename);
   };
 
   const resetFilters = () => {
+    console.log("Resetting all filters");
     setFilters({
       dept_name: "",
       year: "",
       section_name: "",
       date: null,
     });
-    setAttendanceData([]);
-    setExpandedPeriods({});
-    setFormData({ dept_name: "", date: "" });
-    setError(null);
+    
+    // Close the filter modal if it's open
+    setIsFilterModalOpen(false);
+    
+    // Fetch all attendance data without filters
+    axios.get("http://localhost:8000/attendance")
+      .then(response => {
+        console.log("Reset: fetched all attendance data", response.data);
+        if (response.data.attendance && response.data.attendance.length > 0) {
+          processAttendanceData(response.data.attendance);
+          setFormData({ dept_name: "All Departments", date: "All Dates" });
+        } else {
+          setAttendanceData([]);
+          setError("No attendance records found");
+        }
+      })
+      .catch(err => {
+        console.error("Error resetting filters:", err);
+        setError("Failed to fetch attendance data after reset");
+      });
+  };
+
+  // For debugging - display information about state
+  // Will be removed in production
+  const showDebugInfo = () => {
+    return (
+      <div className="bg-yellow-100 p-3 mb-4 text-xs">
+        <h4>Debug Info:</h4>
+        <ul>
+          <li>API Called: {debug.apiCalled ? "Yes" : "No"}</li>
+          <li>Data Received: {debug.dataReceived ? "Yes" : "No"}</li>
+          <li>Records Count: {debug.recordCount}</li>
+          <li>Periods Count: {attendanceData.length}</li>
+          <li>Filter Modal Open: {isFilterModalOpen ? "Yes" : "No"}</li>
+        </ul>
+      </div>
+    );
   };
 
   return (
@@ -216,6 +394,9 @@ export default function AttendanceReport() {
       <Header />
 
       <main className="max-w-6xl mx-auto p-6 mt-28 mb-16">
+        {/* Debug Info - REMOVE IN PRODUCTION */}
+        {showDebugInfo()}
+        
         {/* Filter Modal */}
         {isFilterModalOpen && (
           <div className="fixed inset-0 bg-white bg-opacity-50 flex items-center justify-center z-50">
@@ -227,7 +408,6 @@ export default function AttendanceReport() {
                 <button
                   onClick={() => {
                     setIsFilterModalOpen(false);
-                    navigate("/");
                   }}
                   className="text-gray-500 hover:text-gray-700"
                 >
@@ -308,7 +488,9 @@ export default function AttendanceReport() {
                   onClick={handleApplyFilters}
                   className="flex-1 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
                 >
-                  Apply Filters
+                  {!filters.dept_name && !filters.year && !filters.section_name && !filters.date
+                    ? "Show All Records"
+                    : "Apply Filters"}
                 </button>
                 <button
                   onClick={resetFilters}
@@ -369,7 +551,7 @@ export default function AttendanceReport() {
           {attendanceData.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-gray-500 text-lg">
-                Please apply filters to view attendance records
+                No attendance records found. Try different filters or show all records.
               </p>
               <button
                 onClick={() => setIsFilterModalOpen(true)}
@@ -397,7 +579,7 @@ export default function AttendanceReport() {
                           {period.subject_name} ({period.subject_code})
                         </h3>
                         <p className="text-gray-600">
-                          Time: {period.start_time} - {period.end_time}
+                          Date: {period.date} • Time: {period.start_time} - {period.end_time}
                         </p>
                       </div>
                       <button
