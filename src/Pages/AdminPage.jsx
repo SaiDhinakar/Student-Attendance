@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { Filter, ChevronDown, ChevronUp, ChevronRight, Calendar } from "lucide-react";
 import DatePicker from "react-datepicker";
@@ -14,7 +14,7 @@ export default function AdminPage() {
     subject_code: "",
     date: null,
   });
-  
+
   const [attendanceData, setAttendanceData] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [years, setYears] = useState([]);
@@ -25,82 +25,77 @@ export default function AdminPage() {
   const [isFilterVisible, setIsFilterVisible] = useState(true);
   const [groupedData, setGroupedData] = useState({});
   const [expandedGroups, setExpandedGroups] = useState({});
-  
+
   // Fetch departments on component mount
   useEffect(() => {
-    axios.get("http://localhost:8000/departments")
-      .then(response => setDepartments(response.data))
-      .catch(error => console.error("Error fetching departments:", error));
+    axios
+      .get("http://localhost:8000/departments")
+      .then((response) => setDepartments(response.data))
+      .catch((error) => console.error("Error fetching departments:", error));
   }, []);
 
   // Fetch years when department changes
   useEffect(() => {
     if (filters.dept_name) {
-      axios.get(`http://localhost:8000/years/${filters.dept_name}`)
-        .then(response => setYears(response.data))
-        .catch(error => console.error("Error fetching years:", error));
-      
-      // Reset year and section when department changes
-      setFilters(prev => ({
+      axios
+        .get(`http://localhost:8000/years/${filters.dept_name}`)
+        .then((response) => setYears(response.data))
+        .catch((error) => console.error("Error fetching years:", error));
+
+      setFilters((prev) => ({
         ...prev,
         year: "",
         section_name: "",
-        subject_code: ""
+        subject_code: "",
       }));
       setSections([]);
       setSubjects([]);
     }
   }, [filters.dept_name]);
 
-  // Fetch sections when year changes
+  // Fetch sections and subjects when year changes
   useEffect(() => {
     if (filters.dept_name && filters.year) {
-      axios.get(`http://localhost:8000/sections/${filters.dept_name}/${filters.year}`)
-        .then(response => setSections(response.data))
-        .catch(error => console.error("Error fetching sections:", error));
-      
-      // Fetch subjects for the department and year
-      axios.get(`http://localhost:8000/subjects/${filters.dept_name}/${filters.year}`)
-        .then(response => setSubjects(response.data))
-        .catch(error => console.error("Error fetching subjects:", error));
-      
-      // Reset section when year changes
-      setFilters(prev => ({
+      axios
+        .get(`http://localhost:8000/sections/${filters.dept_name}/${filters.year}`)
+        .then((response) => setSections(response.data))
+        .catch((error) => console.error("Error fetching sections:", error));
+
+      axios
+        .get(`http://localhost:8000/subjects/${filters.dept_name}/${filters.year}`)
+        .then((response) => setSubjects(response.data))
+        .catch((error) => console.error("Error fetching subjects:", error));
+
+      setFilters((prev) => ({
         ...prev,
         section_name: "",
-        subject_code: ""
+        subject_code: "",
       }));
     }
   }, [filters.dept_name, filters.year]);
-  
+
   // Handle filter input changes
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters((prev) => ({ ...prev, [name]: value }));
   };
-  
+
   // Handle date changes via DatePicker
   const handleDateChange = (date) => {
-    setFilters(prev => ({
-      ...prev,
-      date: date
-    }));
+    setFilters((prev) => ({ ...prev, date }));
   };
-  
+
   // Apply filters to fetch attendance data
   const handleApplyFilters = async () => {
     setLoading(true);
     setError(null);
 
-    // Check if we have at least one filter
-    if (!filters.dept_name && !filters.year && !filters.section_name && 
-        !filters.subject_code && !filters.date) {
+    if (!filters.dept_name && !filters.year && !filters.section_name && !filters.subject_code && !filters.date) {
       setError("Please select at least one filter");
       setLoading(false);
       return;
     }
 
-    // Prepare query parameters
     const params = new URLSearchParams();
     if (filters.dept_name) params.append("dept_name", filters.dept_name);
     if (filters.year) params.append("year", filters.year);
@@ -117,20 +112,14 @@ export default function AdminPage() {
 
     try {
       const response = await axios.get(`http://localhost:8000/attendance?${params.toString()}`);
-      
-      console.log("API Response:", response.data);
-      
       if (!response.data) {
         setError("No attendance records found for the selected filters");
         setAttendanceData([]);
         setGroupedData({});
         return;
       }
-      
-      // Store the raw data
+
       setAttendanceData(response.data);
-      
-      // Process the data - handle both array and object formats
       groupAttendanceData(response.data);
     } catch (err) {
       console.error("Error fetching attendance data:", err);
@@ -141,7 +130,7 @@ export default function AdminPage() {
       setLoading(false);
     }
   };
-  
+
   // Reset filters
   const handleResetFilters = () => {
     setFilters({
@@ -155,210 +144,298 @@ export default function AdminPage() {
     setSections([]);
     setSubjects([]);
   };
-  
-  // Group and organize attendance data
-  // const groupAttendanceData = (data) => {
-  //   // Check if data is wrapped in an attendance property
-  //   const attendanceRecords = data.attendance || data;
-    
-  //   if (!attendanceRecords || !Array.isArray(attendanceRecords) || attendanceRecords.length === 0) {
-  //     console.error("No valid attendance records found in data:", data);
-  //     setGroupedData({});
-  //     return;
-  //   }
-    
-  //   console.log("Processing attendance records:", attendanceRecords.length);
-    
-  //   const grouped = {};
-    
-  //   // Process each attendance record
-  //   attendanceRecords.forEach(record => {
-  //     if (!record) return;
-      
-  //     // Get required fields with fallbacks
-  //     const date = record.date || new Date().toISOString().split('T')[0];
-  //     const dept_name = record.dept_name || filters.dept_name || "Unknown";
-  //     const year = record.year || filters.year || "1";
-  //     const section_name = record.section_name || filters.section_name || "A";
-  //     const subject_code = record.subject_code || filters.subject_code || "Unknown";
-      
-  //     // Create structure if it doesn't exist
-  //     if (!grouped[date]) grouped[date] = {};
-  //     if (!grouped[date][year]) grouped[date][year] = {};
-  //     if (!grouped[date][year][dept_name]) grouped[date][year][dept_name] = {};
-  //     if (!grouped[date][year][dept_name][section_name]) {
-  //       grouped[date][year][dept_name][section_name] = {
-  //         subject: subject_code,
-  //         students: []
-  //       };
-  //     }
-      
-  //     // Add this student to the appropriate section
-  //     if (record.register_number || record.roll_number || record.id) {
-  //       grouped[date][year][dept_name][section_name].students.push({
-  //         register_number: record.register_number || record.roll_number || record.id,
-  //         name: record.name || record.student_name || "Unknown",
-  //         is_present: record.is_present === 1 || record.status === 'Present',
-  //         timestamp: record.timestamp || record.time || new Date().toLocaleTimeString()
-  //       });
-  //     }
-  //   });
-    
-  //   // Check if we've built any valid groups
-  //   if (Object.keys(grouped).length === 0) {
-  //     console.error("No valid groups could be created from data");
-  //     setError("Could not process attendance data. Format may be incorrect.");
-  //     setGroupedData({});
-  //     return;
-  //   }
-    
-  //   console.log("Grouped data:", grouped);
-  //   setGroupedData(grouped);
-    
-  //   // Initialize all groups as collapsed, except first date which we'll expand
-  //   const initialExpandedState = {};
-  //   const dates = Object.keys(grouped);
-    
-  //   dates.forEach((date, index) => {
-  //     // Expand the first date by default
-  //     initialExpandedState[date] = index === 0;
-      
-  //     Object.keys(grouped[date] || {}).forEach(year => {
-  //       initialExpandedState[`${date}-${year}`] = index === 0;
-        
-  //       Object.keys(grouped[date][year] || {}).forEach(dept => {
-  //         initialExpandedState[`${date}-${year}-${dept}`] = index === 0;
-          
-  //         Object.keys(grouped[date][year][dept] || {}).forEach(section => {
-  //           initialExpandedState[`${date}-${year}-${dept}-${section}`] = index === 0;
-  //         });
-  //       });
-  //     });
-  //   });
-    
-  //   setExpandedGroups(initialExpandedState);
-  // };
-  // Updated groupAttendanceData function with better year handling
-const groupAttendanceData = (data) => {
-  // Check if data is wrapped in an attendance property
-  const attendanceRecords = data.attendance || data;
-  
-  if (!attendanceRecords || !Array.isArray(attendanceRecords) || attendanceRecords.length === 0) {
-    console.error("No valid attendance records found in data:", data);
-    setGroupedData({});
-    return;
-  }
-  
-  console.log("Processing attendance records:", attendanceRecords.length);
-  
-  const grouped = {};
-  
-  // Process each attendance record
-  attendanceRecords.forEach(record => {
-    if (!record) return;
-    
-    // Get required fields with fallbacks - use year directly from the record
-    const date = record.date || new Date().toISOString().split('T')[0];
-    const dept_name = record.dept_name || filters.dept_name || "Unknown";
-    
-    // Important: Extract the year directly from the record without fallback
-    // This ensures we use the actual year value from the database
-    const year = record.year ? String(record.year) : filters.year || "Unknown";
-    
-    const section_name = record.section_name || filters.section_name || "A";
-    const subject_code = record.subject_code || filters.subject_code || "Unknown";
-    
-    // Create structure if it doesn't exist
-    if (!grouped[date]) grouped[date] = {};
-    if (!grouped[date][year]) grouped[date][year] = {};
-    if (!grouped[date][year][dept_name]) grouped[date][year][dept_name] = {};
-    if (!grouped[date][year][dept_name][section_name]) {
-      grouped[date][year][dept_name][section_name] = {
-        subject: subject_code,
-        students: []
-      };
+
+  // Group attendance data hierarchically: Department -> Year -> Section -> Date -> Period (Subject)
+  const groupAttendanceData = (data) => {
+    const attendanceRecords = data.attendance || data;
+
+    if (!attendanceRecords || !Array.isArray(attendanceRecords) || attendanceRecords.length === 0) {
+      console.error("No valid attendance records found in data:", data);
+      setGroupedData({});
+      return;
     }
-    
-    // Add this student to the appropriate section
-    if (record.register_number || record.roll_number || record.id) {
-      grouped[date][year][dept_name][section_name].students.push({
-        register_number: record.register_number || record.roll_number || record.id,
-        name: record.name || record.student_name || "Unknown",
-        is_present: record.is_present === 1 || record.status === 'Present',
-        timestamp: record.timestamp || record.time || new Date().toLocaleTimeString()
+
+    console.log("Raw attendance records:", attendanceRecords);
+
+    const grouped = {};
+
+    attendanceRecords.forEach((record, index) => {
+      if (!record) {
+        console.warn(`Record at index ${index} is null or undefined`);
+        return;
+      }
+
+      // Use filters as fallback to prevent skipping records
+      const dept_name = record.dept_name || filters.dept_name || "Unknown";
+      const year = record.year ? String(record.year) : filters.year || "Not Specified";
+      const section_name = record.section_name || filters.section_name || "A";
+      const date = record.date || new Date().toISOString().split("T")[0];
+      const subject_code = record.subject_code || filters.subject_code || "Unknown";
+
+      console.log(`Processing record ${index}:`, {
+        dept_name,
+        year,
+        section_name,
+        date,
+        subject_code,
+        original_record: record,
       });
+
+      if (!grouped[dept_name]) grouped[dept_name] = {};
+      if (!grouped[dept_name][year]) grouped[dept_name][year] = {};
+      if (!grouped[dept_name][year][section_name]) grouped[dept_name][year][section_name] = {};
+      if (!grouped[dept_name][year][section_name][date]) grouped[dept_name][year][section_name][date] = {};
+      if (!grouped[dept_name][year][section_name][date][subject_code]) {
+        grouped[dept_name][year][section_name][date][subject_code] = {
+          students: [],
+        };
+      }
+
+      if (record.register_number || record.roll_number || record.id) {
+        grouped[dept_name][year][section_name][date][subject_code].students.push({
+          register_number: record.register_number || record.roll_number || record.id,
+          name: record.name || record.student_name || "Unknown",
+          is_present: record.is_present === 1 || record.status === "Present",
+          timestamp: record.timestamp || record.time || new Date().toLocaleTimeString(),
+        });
+      } else {
+        console.warn(`Record at index ${index} missing student identifier:`, record);
+      }
+    });
+
+    console.log("Grouped data:", grouped);
+    console.log("Years in grouped data:", Object.values(grouped).flatMap((dept) => Object.keys(dept)));
+
+    if (Object.keys(grouped).length === 0) {
+      console.error("No valid groups could be created from data");
+      setError("Could not process attendance data. Format may be incorrect or no valid records found.");
+      setGroupedData({});
+      return;
     }
-  });
-  
-  // Debug logging for year values
-  console.log("Years detected in data:", Object.keys(grouped).flatMap(date => 
-    Object.keys(grouped[date]).map(year => ({ date, year }))
-  ));
-  
-  if (Object.keys(grouped).length === 0) {
-    console.error("No valid groups could be created from data");
-    setError("Could not process attendance data. Format may be incorrect.");
-    setGroupedData({});
-    return;
-  }
-  
-  console.log("Grouped data:", grouped);
-  setGroupedData(grouped);
-  
-  // Initialize all groups as collapsed, except first date which we'll expand
-  const initialExpandedState = {};
-  const dates = Object.keys(grouped);
-  
-  dates.forEach((date, index) => {
-    // Expand the first date by default
-    initialExpandedState[date] = index === 0;
-    
-    Object.keys(grouped[date] || {}).forEach(year => {
-      initialExpandedState[`${date}-${year}`] = index === 0;
-      
-      Object.keys(grouped[date][year] || {}).forEach(dept => {
-        initialExpandedState[`${date}-${year}-${dept}`] = index === 0;
-        
-        Object.keys(grouped[date][year][dept] || {}).forEach(section => {
-          initialExpandedState[`${date}-${year}-${dept}-${section}`] = index === 0;
+
+    setGroupedData(grouped);
+
+    const initialExpandedState = {};
+    const depts = Object.keys(grouped);
+    depts.forEach((dept, deptIndex) => {
+      initialExpandedState[dept] = deptIndex === 0;
+      Object.keys(grouped[dept] || {}).forEach((year, yearIndex) => {
+        initialExpandedState[`${dept}-${year}`] = deptIndex === 0 && yearIndex === 0;
+        Object.keys(grouped[dept][year] || {}).forEach((section, sectionIndex) => {
+          initialExpandedState[`${dept}-${year}-${section}`] = deptIndex === 0 && yearIndex === 0 && sectionIndex === 0;
+          Object.keys(grouped[dept][year][section] || {}).forEach((date, dateIndex) => {
+            initialExpandedState[`${dept}-${year}-${section}-${date}`] =
+              deptIndex === 0 && yearIndex === 0 && sectionIndex === 0 && dateIndex === 0;
+            Object.keys(grouped[dept][year][section][date] || {}).forEach((subject) => {
+              initialExpandedState[`${dept}-${year}-${section}-${date}-${subject}`] =
+                deptIndex === 0 && yearIndex === 0 && sectionIndex === 0 && dateIndex === 0;
+            });
+          });
         });
       });
     });
-  });
-  
-  setExpandedGroups(initialExpandedState);
-};
-  
+
+    setExpandedGroups(initialExpandedState);
+  };
+
+  // Toggle group expansion
   const toggleGroup = (groupId) => {
-    setExpandedGroups(prev => ({
+    setExpandedGroups((prev) => ({
       ...prev,
-      [groupId]: !prev[groupId]
+      [groupId]: !prev[groupId],
     }));
   };
-  
+
+  // Format date for display
   const formatDate = (dateStr) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString("en-US", { 
-      weekday: 'short',
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric'
+    return date.toLocaleDateString("en-US", {
+      weekday: "short",
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
   };
-  
-  const sortTimeBlocks = (blocks) => {
-    return [...blocks].sort((a, b) => {
-      const timeA = a.startTime.split(':').map(Number);
-      const timeB = b.startTime.split(':').map(Number);
-      if (timeA[0] === timeB[0]) return timeA[1] - timeB[1];
-      return timeA[0] - timeB[0];
+
+  // Render table rows hierarchically
+  const renderTableRows = useMemo(() => {
+    const rows = [];
+
+    Object.entries(groupedData).forEach(([dept, years]) => {
+      const deptId = dept;
+      const isDeptExpanded = expandedGroups[deptId];
+
+      rows.push(
+        <tr key={deptId} className="bg-blue-100 font-semibold text-gray-800">
+          <td colSpan={6} className="px-4 py-4 rounded-t-lg">
+            <button
+              onClick={() => toggleGroup(deptId)}
+              className="flex items-center hover:text-blue-700 transition-colors duration-200 w-full text-left"
+            >
+              {isDeptExpanded ? (
+                <ChevronDown size={20} className="mr-2 transition-transform duration-200" />
+              ) : (
+                <ChevronRight size={20} className="mr-2 transition-transform duration-200" />
+              )}
+              <span className="text-base">Department: {dept}</span>
+            </button>
+          </td>
+        </tr>
+      );
+
+      if (!isDeptExpanded) return;
+
+      Object.entries(years).forEach(([year, sections]) => {
+        const yearId = `${deptId}-${year}`;
+        const isYearExpanded = expandedGroups[yearId];
+
+        rows.push(
+          <tr key={yearId} className="bg-teal-50 font-medium text-gray-700">
+            <td colSpan={6} className="px-6 py-3">
+              <button
+                onClick={() => toggleGroup(yearId)}
+                className="flex items-center hover:text-teal-600 transition-colors duration-200 w-full text-left"
+              >
+                {isYearExpanded ? (
+                  <ChevronDown size={18} className="mr-2 transition-transform duration-200" />
+                ) : (
+                  <ChevronRight size={18} className="mr-2 transition-transform duration-200" />
+                )}
+                <span className="text-sm">Year: {year || "Not Specified"}</span>
+              </button>
+            </td>
+          </tr>
+        );
+
+        if (!isYearExpanded) return;
+
+        Object.entries(sections).forEach(([section, dates]) => {
+          const sectionId = `${yearId}-${section}`;
+          const isSectionExpanded = expandedGroups[sectionId];
+
+          rows.push(
+            <tr key={sectionId} className="bg-green-50">
+              <td colSpan={6} className="px-8 py-3">
+                <button
+                  onClick={() => toggleGroup(sectionId)}
+                  className="flex items-center hover:text-green-600 transition-colors duration-200 w-full text-left"
+                >
+                  {isSectionExpanded ? (
+                    <ChevronDown size={18} className="mr-2 transition-transform duration-200" />
+                  ) : (
+                    <ChevronRight size={18} className="mr-2 transition-transform duration-200" />
+                  )}
+                  <span className="text-sm">Section: {section}</span>
+                </button>
+              </td>
+            </tr>
+          );
+
+          if (!isSectionExpanded) return;
+
+          Object.entries(dates).forEach(([date, subjects]) => {
+            const dateId = `${sectionId}-${date}`;
+            const isDateExpanded = expandedGroups[dateId];
+
+            rows.push(
+              <tr key={dateId} className="bg-gray-100">
+                <td colSpan={6} className="px-10 py-3">
+                  <button
+                    onClick={() => toggleGroup(dateId)}
+                    className="flex items-center hover:text-gray-700 transition-colors duration-200 w-full text-left"
+                  >
+                    {isDateExpanded ? (
+                      <ChevronDown size={18} className="mr-2 transition-transform duration-200" />
+                    ) : (
+                      <ChevronRight size={18} className="mr-2 transition-transform duration-200" />
+                    )}
+                    <span className="text-sm">Date: {formatDate(date)}</span>
+                  </button>
+                </td>
+              </tr>
+            );
+
+            if (!isDateExpanded) return;
+
+            Object.entries(subjects).forEach(([subject, { students }]) => {
+              const subjectId = `${dateId}-${subject}`;
+              const isSubjectExpanded = expandedGroups[subjectId];
+
+              rows.push(
+                <tr key={subjectId} className="bg-white border-t border-gray-200">
+                  <td colSpan={6} className="px-12 py-3">
+                    <button
+                      onClick={() => toggleGroup(subjectId)}
+                      className="flex items-center hover:text-blue-600 transition-colors duration-200 w-full text-left"
+                    >
+                      {isSubjectExpanded ? (
+                        <ChevronDown size={18} className="mr-2 transition-transform duration-200" />
+                      ) : (
+                        <ChevronRight size={18} className="mr-2 transition-transform duration-200" />
+                      )}
+                      <span className="text-sm">Period: {subject}</span>
+                    </button>
+                  </td>
+                </tr>
+              );
+
+              if (!isSubjectExpanded) return;
+
+              students.forEach((student, idx) => {
+                rows.push(
+                  <tr
+                    key={`${subjectId}-${student.register_number}`}
+                    className={`${
+                      idx % 2 ? "bg-gray-50" : "bg-white"
+                    } hover:bg-blue-50 transition-colors duration-150`}
+                  >
+                    <td className="px-14 py-3 text-sm text-gray-800">{student.register_number}</td>
+                    <td className="px-4 py-3 text-sm text-gray-800">{student.name}</td>
+                    <td className="px-4 py-3 text-sm text-center">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          student.is_present ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                        }`}
+                      >
+                        {student.is_present ? "Present" : "Absent"}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 text-center">{student.timestamp || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-gray-600"></td>
+                    <td className="px-4 py-3 text-sm text-gray-600"></td>
+                  </tr>
+                );
+              });
+
+              const presentCount = students.filter((s) => s.is_present).length;
+              const totalCount = students.length;
+              rows.push(
+                <tr
+                  key={`${subjectId}-summary`}
+                  className="bg-gray-200 font-medium text-gray-700 border-t border-gray-200"
+                >
+                  <td colSpan={2} className="px-14 py-2 text-sm">
+                    Summary
+                  </td>
+                  <td className="px-4 py-2 text-sm text-center">
+                    Present: {presentCount} / Absent: {totalCount - presentCount}
+                  </td>
+                  <td colSpan={3} className="px-4 py-2 text-sm"></td>
+                </tr>
+              );
+            });
+          });
+        });
+      });
     });
-  };
-  
+
+    return rows;
+  }, [groupedData, expandedGroups]);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      
+
       <main className="max-w-7xl mx-auto p-4 lg:p-6 mt-28 mb-16">
         <div className="bg-white rounded-xl shadow-lg p-4 md:p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
@@ -371,14 +448,12 @@ const groupAttendanceData = (data) => {
               {isFilterVisible ? "Hide Filters" : "Show Filters"}
             </button>
           </div>
-          
+
           {isFilterVisible && (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Department
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
                   <select
                     name="dept_name"
                     value={filters.dept_name}
@@ -387,18 +462,18 @@ const groupAttendanceData = (data) => {
                   >
                     <option value="">All Departments</option>
                     {departments.map((dept) => (
-                      <option key={typeof dept === 'string' ? dept : dept.dept_name} 
-                              value={typeof dept === 'string' ? dept : dept.dept_name}>
-                        {typeof dept === 'string' ? dept : dept.dept_name}
+                      <option
+                        key={typeof dept === "string" ? dept : dept.dept_name}
+                        value={typeof dept === "string" ? dept : dept.dept_name}
+                      >
+                        {typeof dept === "string" ? dept : dept.dept_name}
                       </option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Year
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
                   <select
                     name="year"
                     value={filters.year}
@@ -408,18 +483,18 @@ const groupAttendanceData = (data) => {
                   >
                     <option value="">All Years</option>
                     {years.map((year) => (
-                      <option key={typeof year === 'string' || typeof year === 'number' ? year : year.year} 
-                              value={typeof year === 'string' || typeof year === 'number' ? year : year.year}>
-                        {typeof year === 'string' || typeof year === 'number' ? year : year.year}
+                      <option
+                        key={typeof year === "string" || typeof year === "number" ? year : year.year}
+                        value={typeof year === "string" || typeof year === "number" ? year : year.year}
+                      >
+                        {typeof year === "string" || typeof year === "number" ? year : year.year}
                       </option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Section
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
                   <select
                     name="section_name"
                     value={filters.section_name}
@@ -429,18 +504,18 @@ const groupAttendanceData = (data) => {
                   >
                     <option value="">All Sections</option>
                     {sections.map((section) => (
-                      <option key={typeof section === 'string' ? section : section.section_name || section.section_id} 
-                              value={typeof section === 'string' ? section : section.section_name}>
-                        {typeof section === 'string' ? section : section.section_name}
+                      <option
+                        key={typeof section === "string" ? section : section.section_name || section.section_id}
+                        value={typeof section === "string" ? section : section.section_name}
+                      >
+                        {typeof section === "string" ? section : section.section_name}
                       </option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Subject Code
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Subject Code</label>
                   <select
                     name="subject_code"
                     value={filters.subject_code}
@@ -450,8 +525,7 @@ const groupAttendanceData = (data) => {
                   >
                     <option value="">All Subjects</option>
                     {subjects.map((subject) => (
-                      <option key={subject.subject_code || subject.id} 
-                              value={subject.subject_code}>
+                      <option key={subject.subject_code || subject.id} value={subject.subject_code}>
                         {subject.subject_name || subject.subject_code}
                       </option>
                     ))}
@@ -459,9 +533,7 @@ const groupAttendanceData = (data) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Date
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                   <div className="relative">
                     <DatePicker
                       selected={filters.date}
@@ -520,192 +592,33 @@ const groupAttendanceData = (data) => {
               </div>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <div className="space-y-6">
-                {Object.keys(groupedData).map(date => (
-                  <div key={date} className="border rounded-lg overflow-hidden">
-                    <div 
-                      className="bg-blue-50 p-3 cursor-pointer flex items-center"
-                      onClick={() => toggleGroup(date)}
-                    >
-                      {expandedGroups[date] ? (
-                        <ChevronDown size={20} className="text-blue-700 mr-2" />
-                      ) : (
-                        <ChevronRight size={20} className="text-blue-700 mr-2" />
-                      )}
-                      <h3 className="text-lg font-medium text-blue-800">
-                        {formatDate(date)}
-                      </h3>
-                    </div>
-                    
-                    {expandedGroups[date] && (
-                      <div className="p-2 space-y-4">
-                        {Object.keys(groupedData[date])
-                          .sort((a, b) => parseInt(a) - parseInt(b))
-                          .map(year => (
-                            <div key={`${date}-${year}`} className="border rounded-lg overflow-hidden ml-4">
-                              <div 
-                                className="bg-indigo-50 p-2 cursor-pointer flex items-center"
-                                onClick={() => toggleGroup(`${date}-${year}`)}
-                              >
-                                {expandedGroups[`${date}-${year}`] ? (
-                                  <ChevronDown size={18} className="text-indigo-700 mr-2" />
-                                ) : (
-                                  <ChevronRight size={18} className="text-indigo-700 mr-2" />
-                                )}
-                                <h4 className="font-medium text-indigo-800">
-                                  Year {year}
-                                </h4>
-                              </div>
-                              
-                              {expandedGroups[`${date}-${year}`] && (
-                                <div className="p-2 space-y-3">
-                                  {Object.keys(groupedData[date][year]).map(dept => (
-                                    <div key={`${date}-${year}-${dept}`} className="border rounded-lg overflow-hidden ml-4">
-                                      <div 
-                                        className="bg-purple-50 p-2 cursor-pointer flex items-center"
-                                        onClick={() => toggleGroup(`${date}-${year}-${dept}`)}
-                                      >
-                                        {expandedGroups[`${date}-${year}-${dept}`] ? (
-                                          <ChevronDown size={16} className="text-purple-700 mr-2" />
-                                        ) : (
-                                          <ChevronRight size={16} className="text-purple-700 mr-2" />
-                                        )}
-                                        <h5 className="font-medium text-purple-800">
-                                          {dept} Department
-                                        </h5>
-                                      </div>
-                                      
-                                      {expandedGroups[`${date}-${year}-${dept}`] && (
-                                        <div className="p-2 space-y-2">
-                                          {Object.keys(groupedData[date][year][dept]).map(section => {
-                                            // Get section data safely
-                                            const sectionData = groupedData[date][year][dept][section];
-                                            
-                                            return (
-                                              <div key={`${date}-${year}-${dept}-${section}`} className="border rounded-lg overflow-hidden ml-4">
-                                                <div 
-                                                  className="bg-teal-50 p-2 cursor-pointer flex items-center"
-                                                  onClick={() => toggleGroup(`${date}-${year}-${dept}-${section}`)}
-                                                >
-                                                  {expandedGroups[`${date}-${year}-${dept}-${section}`] ? (
-                                                    <ChevronDown size={16} className="text-teal-700 mr-2" />
-                                                  ) : (
-                                                    <ChevronRight size={16} className="text-teal-700 mr-2" />
-                                                  )}
-                                                  <h5 className="font-medium text-teal-800">
-                                                    Section {section}
-                                                  </h5>
-                                                </div>
-                                                
-                                                {expandedGroups[`${date}-${year}-${dept}-${section}`] && (
-                                                  <div className="overflow-x-auto p-3">
-                                                    <table className="min-w-full divide-y divide-gray-200 border border-gray-300">
-                                                      <thead className="bg-gray-100">
-                                                        <tr>
-                                                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                                                            Roll No
-                                                          </th>
-                                                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
-                                                            Student Name
-                                                          </th>
-                                                          <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
-                                                            Status
-                                                          </th>
-                                                          <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
-                                                            Time
-                                                          </th>
-                                                        </tr>
-                                                      </thead>
-                                                      <tbody className="bg-white divide-y divide-gray-200">
-                                                        {sectionData.students && sectionData.students.length > 0 ? (
-                                                          sectionData.students.map((student, idx) => (
-                                                            <tr key={`${student.register_number}-${idx}`} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                                                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                                                {student.register_number}
-                                                              </td>
-                                                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                                                                {student.name}
-                                                              </td>
-                                                              <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                                                                <span 
-                                                                  className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${
-                                                                    student.is_present
-                                                                      ? 'bg-green-100 text-green-800' 
-                                                                      : 'bg-red-100 text-red-800'
-                                                                  }`}
-                                                                >
-                                                                  {student.is_present ? 'Present' : 'Absent'}
-                                                                </span>
-                                                              </td>
-                                                              <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-600">
-                                                                {student.timestamp || '-'}
-                                                              </td>
-                                                            </tr>
-                                                          ))
-                                                        ) : (
-                                                          <tr>
-                                                            <td colSpan="4" className="px-6 py-4 text-center text-sm text-gray-500">
-                                                              No student records found
-                                                            </td>
-                                                          </tr>
-                                                        )}
-                                                      </tbody>
-                                                    </table>
-
-                                                    {/* Summary Statistics */}
-                                                    {sectionData.students && sectionData.students.length > 0 && (
-                                                      <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                                        <div className="flex flex-wrap gap-4">
-                                                          <div className="text-sm">
-                                                            <span className="font-medium text-gray-600">Total Students:</span>{" "}
-                                                            <span className="text-gray-800">{sectionData.students.length}</span>
-                                                          </div>
-                                                          <div className="text-sm">
-                                                            <span className="font-medium text-gray-600">Present:</span>{" "}
-                                                            <span className="text-green-600">
-                                                              {sectionData.students.filter(s => s.is_present).length}
-                                                            </span>
-                                                          </div>
-                                                          <div className="text-sm">
-                                                            <span className="font-medium text-gray-600">Absent:</span>{" "}
-                                                            <span className="text-red-600">
-                                                              {sectionData.students.filter(s => !s.is_present).length}
-                                                            </span>
-                                                          </div>
-                                                          <div className="text-sm">
-                                                            <span className="font-medium text-gray-600">Attendance Rate:</span>{" "}
-                                                            <span className="text-blue-600">
-                                                              {Math.round((sectionData.students.filter(s => s.is_present).length / 
-                                                                sectionData.students.length) * 100)}%
-                                                            </span>
-                                                          </div>
-                                                        </div>
-                                                      </div>
-                                                    )}
-                                                  </div>
-                                                )}
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+            <div className="overflow-x-auto max-h-[600px]">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-100 sticky top-0 z-10 shadow-sm">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      Roll No
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      Student Name
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      Time
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider"></th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider"></th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">{renderTableRows}</tbody>
+              </table>
             </div>
           )}
         </div>
       </main>
-      
+
       <Footer />
     </div>
   );
