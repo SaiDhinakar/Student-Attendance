@@ -191,7 +191,7 @@ export default function AttendanceReview() {
       setIsEditing(false);
       sessionStorage.removeItem("attendanceForm");
       sessionStorage.removeItem("attendanceData");
-      navigate("/attendance-assist");
+      navigate("/");
     } catch (error) {
       console.error("Error saving attendance:", error);
       const errorMsg =

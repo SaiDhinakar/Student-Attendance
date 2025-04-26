@@ -116,17 +116,22 @@ export default function AdminPage() {
     }
 
     try {
-      // Use GET with URLSearchParams instead of POST
       const response = await axios.get(`http://localhost:8000/attendance?${params.toString()}`);
       
-      if (!response.data || response.data.length === 0) {
+      console.log("API Response:", response.data);
+      
+      if (!response.data) {
         setError("No attendance records found for the selected filters");
         setAttendanceData([]);
         setGroupedData({});
-      } else {
-        setAttendanceData(response.data);
-        groupAttendanceData(response.data);
+        return;
       }
+      
+      // Store the raw data
+      setAttendanceData(response.data);
+      
+      // Process the data - handle both array and object formats
+      groupAttendanceData(response.data);
     } catch (err) {
       console.error("Error fetching attendance data:", err);
       setError(err.response?.data?.detail || "Failed to fetch attendance data. Please try different filters.");
@@ -152,88 +157,177 @@ export default function AdminPage() {
   };
   
   // Group and organize attendance data
-  const groupAttendanceData = (data) => {
-    const grouped = {};
+  // const groupAttendanceData = (data) => {
+  //   // Check if data is wrapped in an attendance property
+  //   const attendanceRecords = data.attendance || data;
     
-    if (!Array.isArray(data) || data.length === 0) {
-      setGroupedData({});
-      return;
+  //   if (!attendanceRecords || !Array.isArray(attendanceRecords) || attendanceRecords.length === 0) {
+  //     console.error("No valid attendance records found in data:", data);
+  //     setGroupedData({});
+  //     return;
+  //   }
+    
+  //   console.log("Processing attendance records:", attendanceRecords.length);
+    
+  //   const grouped = {};
+    
+  //   // Process each attendance record
+  //   attendanceRecords.forEach(record => {
+  //     if (!record) return;
+      
+  //     // Get required fields with fallbacks
+  //     const date = record.date || new Date().toISOString().split('T')[0];
+  //     const dept_name = record.dept_name || filters.dept_name || "Unknown";
+  //     const year = record.year || filters.year || "1";
+  //     const section_name = record.section_name || filters.section_name || "A";
+  //     const subject_code = record.subject_code || filters.subject_code || "Unknown";
+      
+  //     // Create structure if it doesn't exist
+  //     if (!grouped[date]) grouped[date] = {};
+  //     if (!grouped[date][year]) grouped[date][year] = {};
+  //     if (!grouped[date][year][dept_name]) grouped[date][year][dept_name] = {};
+  //     if (!grouped[date][year][dept_name][section_name]) {
+  //       grouped[date][year][dept_name][section_name] = {
+  //         subject: subject_code,
+  //         students: []
+  //       };
+  //     }
+      
+  //     // Add this student to the appropriate section
+  //     if (record.register_number || record.roll_number || record.id) {
+  //       grouped[date][year][dept_name][section_name].students.push({
+  //         register_number: record.register_number || record.roll_number || record.id,
+  //         name: record.name || record.student_name || "Unknown",
+  //         is_present: record.is_present === 1 || record.status === 'Present',
+  //         timestamp: record.timestamp || record.time || new Date().toLocaleTimeString()
+  //       });
+  //     }
+  //   });
+    
+  //   // Check if we've built any valid groups
+  //   if (Object.keys(grouped).length === 0) {
+  //     console.error("No valid groups could be created from data");
+  //     setError("Could not process attendance data. Format may be incorrect.");
+  //     setGroupedData({});
+  //     return;
+  //   }
+    
+  //   console.log("Grouped data:", grouped);
+  //   setGroupedData(grouped);
+    
+  //   // Initialize all groups as collapsed, except first date which we'll expand
+  //   const initialExpandedState = {};
+  //   const dates = Object.keys(grouped);
+    
+  //   dates.forEach((date, index) => {
+  //     // Expand the first date by default
+  //     initialExpandedState[date] = index === 0;
+      
+  //     Object.keys(grouped[date] || {}).forEach(year => {
+  //       initialExpandedState[`${date}-${year}`] = index === 0;
+        
+  //       Object.keys(grouped[date][year] || {}).forEach(dept => {
+  //         initialExpandedState[`${date}-${year}-${dept}`] = index === 0;
+          
+  //         Object.keys(grouped[date][year][dept] || {}).forEach(section => {
+  //           initialExpandedState[`${date}-${year}-${dept}-${section}`] = index === 0;
+  //         });
+  //       });
+  //     });
+  //   });
+    
+  //   setExpandedGroups(initialExpandedState);
+  // };
+  // Updated groupAttendanceData function with better year handling
+const groupAttendanceData = (data) => {
+  // Check if data is wrapped in an attendance property
+  const attendanceRecords = data.attendance || data;
+  
+  if (!attendanceRecords || !Array.isArray(attendanceRecords) || attendanceRecords.length === 0) {
+    console.error("No valid attendance records found in data:", data);
+    setGroupedData({});
+    return;
+  }
+  
+  console.log("Processing attendance records:", attendanceRecords.length);
+  
+  const grouped = {};
+  
+  // Process each attendance record
+  attendanceRecords.forEach(record => {
+    if (!record) return;
+    
+    // Get required fields with fallbacks - use year directly from the record
+    const date = record.date || new Date().toISOString().split('T')[0];
+    const dept_name = record.dept_name || filters.dept_name || "Unknown";
+    
+    // Important: Extract the year directly from the record without fallback
+    // This ensures we use the actual year value from the database
+    const year = record.year ? String(record.year) : filters.year || "Unknown";
+    
+    const section_name = record.section_name || filters.section_name || "A";
+    const subject_code = record.subject_code || filters.subject_code || "Unknown";
+    
+    // Create structure if it doesn't exist
+    if (!grouped[date]) grouped[date] = {};
+    if (!grouped[date][year]) grouped[date][year] = {};
+    if (!grouped[date][year][dept_name]) grouped[date][year][dept_name] = {};
+    if (!grouped[date][year][dept_name][section_name]) {
+      grouped[date][year][dept_name][section_name] = {
+        subject: subject_code,
+        students: []
+      };
     }
     
-    const sortedData = [...data].sort((a, b) => {
-      const dateA = new Date(a.date);
-      const dateB = new Date(b.date);
-      return dateB - dateA;
-    });
-    
-    sortedData.forEach(record => {
-      const { date, year, dept_name, section_name, time_block, student_data } = record;
-      
-      if (!date || !year || !dept_name || !section_name || !time_block || !student_data) {
-        console.warn("Invalid record format:", record);
-        return;
-      }
-      
-      if (!grouped[date]) {
-        grouped[date] = {};
-      }
-      
-      if (!grouped[date][year]) {
-        grouped[date][year] = {};
-      }
-      
-      if (!grouped[date][year][dept_name]) {
-        grouped[date][year][dept_name] = {};
-      }
-      
-      if (!grouped[date][year][dept_name][section_name]) {
-        grouped[date][year][dept_name][section_name] = {
-          timeBlocks: {},
-          studentData: {}
-        };
-      }
-      
-      grouped[date][year][dept_name][section_name].timeBlocks[time_block.id] = {
-        id: time_block.id,
-        startTime: time_block.start_time,
-        endTime: time_block.end_time
-      };
-      
-      student_data.forEach(student => {
-        if (!grouped[date][year][dept_name][section_name].studentData[student.student_id]) {
-          grouped[date][year][dept_name][section_name].studentData[student.student_id] = {
-            id: student.student_id,
-            name: student.student_name,
-            rollNo: student.roll_no,
-            attendance: {}
-          };
-        }
-        
-        grouped[date][year][dept_name][section_name].studentData[student.student_id].attendance[time_block.id] = student.present;
+    // Add this student to the appropriate section
+    if (record.register_number || record.roll_number || record.id) {
+      grouped[date][year][dept_name][section_name].students.push({
+        register_number: record.register_number || record.roll_number || record.id,
+        name: record.name || record.student_name || "Unknown",
+        is_present: record.is_present === 1 || record.status === 'Present',
+        timestamp: record.timestamp || record.time || new Date().toLocaleTimeString()
       });
-    });
+    }
+  });
+  
+  // Debug logging for year values
+  console.log("Years detected in data:", Object.keys(grouped).flatMap(date => 
+    Object.keys(grouped[date]).map(year => ({ date, year }))
+  ));
+  
+  if (Object.keys(grouped).length === 0) {
+    console.error("No valid groups could be created from data");
+    setError("Could not process attendance data. Format may be incorrect.");
+    setGroupedData({});
+    return;
+  }
+  
+  console.log("Grouped data:", grouped);
+  setGroupedData(grouped);
+  
+  // Initialize all groups as collapsed, except first date which we'll expand
+  const initialExpandedState = {};
+  const dates = Object.keys(grouped);
+  
+  dates.forEach((date, index) => {
+    // Expand the first date by default
+    initialExpandedState[date] = index === 0;
     
-    setGroupedData(grouped);
-    
-    const initialExpandedState = {};
-    Object.keys(grouped).forEach(date => {
-      initialExpandedState[date] = false;
+    Object.keys(grouped[date] || {}).forEach(year => {
+      initialExpandedState[`${date}-${year}`] = index === 0;
       
-      Object.keys(grouped[date] || {}).forEach(year => {
-        initialExpandedState[`${date}-${year}`] = false;
+      Object.keys(grouped[date][year] || {}).forEach(dept => {
+        initialExpandedState[`${date}-${year}-${dept}`] = index === 0;
         
-        Object.keys(grouped[date][year] || {}).forEach(dept => {
-          initialExpandedState[`${date}-${year}-${dept}`] = false;
-          
-          Object.keys(grouped[date][year][dept] || {}).forEach(section => {
-            initialExpandedState[`${date}-${year}-${dept}-${section}`] = false;
-          });
+        Object.keys(grouped[date][year][dept] || {}).forEach(section => {
+          initialExpandedState[`${date}-${year}-${dept}-${section}`] = index === 0;
         });
       });
     });
-    
-    setExpandedGroups(initialExpandedState);
-  };
+  });
+  
+  setExpandedGroups(initialExpandedState);
+};
   
   const toggleGroup = (groupId) => {
     setExpandedGroups(prev => ({
@@ -408,7 +502,23 @@ export default function AdminPage() {
           ) : error ? (
             <div className="text-red-600 p-4 text-center">{error}</div>
           ) : Object.keys(groupedData).length === 0 ? (
-            <div className="text-gray-600 p-4 text-center">No attendance records found.</div>
+            <div className="text-center py-12">
+              <div className="mx-auto h-16 w-16 flex items-center justify-center rounded-full bg-gray-100">
+                <Calendar size={28} className="text-gray-500" />
+              </div>
+              <h3 className="mt-4 text-lg font-medium text-gray-900">No attendance records</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                {error || "Use the filters above to search for attendance records."}
+              </p>
+              <div className="mt-6">
+                <button
+                  onClick={handleApplyFilters}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                >
+                  Search Records
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <div className="space-y-6">
@@ -469,12 +579,8 @@ export default function AdminPage() {
                                       {expandedGroups[`${date}-${year}-${dept}`] && (
                                         <div className="p-2 space-y-2">
                                           {Object.keys(groupedData[date][year][dept]).map(section => {
+                                            // Get section data safely
                                             const sectionData = groupedData[date][year][dept][section];
-                                            const timeBlocksArray = Object.values(sectionData.timeBlocks);
-                                            const sortedTimeBlocks = sortTimeBlocks(timeBlocksArray);
-                                            
-                                            const students = Object.values(sectionData.studentData)
-                                              .sort((a, b) => a.rollNo.localeCompare(b.rollNo));
                                             
                                             return (
                                               <div key={`${date}-${year}-${dept}-${section}`} className="border rounded-lg overflow-hidden ml-4">
@@ -493,43 +599,90 @@ export default function AdminPage() {
                                                 </div>
                                                 
                                                 {expandedGroups[`${date}-${year}-${dept}-${section}`] && (
-                                                  <div className="overflow-x-auto">
-                                                    <table className="min-w-full divide-y divide-gray-200">
-                                                      <thead className="bg-gray-50">
+                                                  <div className="overflow-x-auto p-3">
+                                                    <table className="min-w-full divide-y divide-gray-200 border border-gray-300">
+                                                      <thead className="bg-gray-100">
                                                         <tr>
-                                                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Roll No</th>
-                                                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student Name</th>
-                                                          {sortedTimeBlocks.map((block, idx) => (
-                                                            <th key={`header-${block.id}-${idx}`} className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                              {block.startTime} - {block.endTime}
-                                                            </th>
-                                                          ))}
+                                                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                                                            Roll No
+                                                          </th>
+                                                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                                                            Student Name
+                                                          </th>
+                                                          <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
+                                                            Status
+                                                          </th>
+                                                          <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">
+                                                            Time
+                                                          </th>
                                                         </tr>
                                                       </thead>
                                                       <tbody className="bg-white divide-y divide-gray-200">
-                                                        {students.map((student) => (
-                                                          <tr key={`student-${student.id}`}>
-                                                            <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                                                              {student.rollNo}
-                                                            </td>
-                                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-800">
-                                                              {student.name}
-                                                            </td>
-                                                            {sortedTimeBlocks.map((block, idx) => (
-                                                              <td key={`cell-${student.id}-${block.id}-${idx}`} className="px-4 py-3 whitespace-nowrap text-sm text-center">
-                                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                                                  student.attendance[block.id] 
-                                                                    ? 'bg-green-100 text-green-800' 
-                                                                    : 'bg-red-100 text-red-800'
-                                                                }`}>
-                                                                  {student.attendance[block.id] ? 'Present' : 'Absent'}
+                                                        {sectionData.students && sectionData.students.length > 0 ? (
+                                                          sectionData.students.map((student, idx) => (
+                                                            <tr key={`${student.register_number}-${idx}`} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                                                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                                {student.register_number}
+                                                              </td>
+                                                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                                                {student.name}
+                                                              </td>
+                                                              <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                                                                <span 
+                                                                  className={`inline-block px-3 py-1 text-xs font-medium rounded-full ${
+                                                                    student.is_present
+                                                                      ? 'bg-green-100 text-green-800' 
+                                                                      : 'bg-red-100 text-red-800'
+                                                                  }`}
+                                                                >
+                                                                  {student.is_present ? 'Present' : 'Absent'}
                                                                 </span>
                                                               </td>
-                                                            ))}
+                                                              <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-600">
+                                                                {student.timestamp || '-'}
+                                                              </td>
+                                                            </tr>
+                                                          ))
+                                                        ) : (
+                                                          <tr>
+                                                            <td colSpan="4" className="px-6 py-4 text-center text-sm text-gray-500">
+                                                              No student records found
+                                                            </td>
                                                           </tr>
-                                                        ))}
+                                                        )}
                                                       </tbody>
                                                     </table>
+
+                                                    {/* Summary Statistics */}
+                                                    {sectionData.students && sectionData.students.length > 0 && (
+                                                      <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                                        <div className="flex flex-wrap gap-4">
+                                                          <div className="text-sm">
+                                                            <span className="font-medium text-gray-600">Total Students:</span>{" "}
+                                                            <span className="text-gray-800">{sectionData.students.length}</span>
+                                                          </div>
+                                                          <div className="text-sm">
+                                                            <span className="font-medium text-gray-600">Present:</span>{" "}
+                                                            <span className="text-green-600">
+                                                              {sectionData.students.filter(s => s.is_present).length}
+                                                            </span>
+                                                          </div>
+                                                          <div className="text-sm">
+                                                            <span className="font-medium text-gray-600">Absent:</span>{" "}
+                                                            <span className="text-red-600">
+                                                              {sectionData.students.filter(s => !s.is_present).length}
+                                                            </span>
+                                                          </div>
+                                                          <div className="text-sm">
+                                                            <span className="font-medium text-gray-600">Attendance Rate:</span>{" "}
+                                                            <span className="text-blue-600">
+                                                              {Math.round((sectionData.students.filter(s => s.is_present).length / 
+                                                                sectionData.students.length) * 100)}%
+                                                            </span>
+                                                          </div>
+                                                        </div>
+                                                      </div>
+                                                    )}
                                                   </div>
                                                 )}
                                               </div>

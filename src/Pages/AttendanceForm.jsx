@@ -274,7 +274,7 @@ const AttendanceForm = () => {
   };
 
   const handleViewReport = () => {
-    navigate("/admin");
+    navigate("/report");
   };
 
   return (

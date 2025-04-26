@@ -16,7 +16,7 @@ function App2() {
             <Route path='/' element={<Form />} />
             <Route path="/attendance-assist" element={<AttendanceAssist />} />
             <Route path="/review" element={<AttendanceReview />} />
-            <Route path="/admin" element={<AdminPage />} />
+            <Route path="/report" element={<AdminPage />} />
             <Route path="/superadmin" element={<SuperAdmin />} />
         </Routes>
     </BrowserRouter>
