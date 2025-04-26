@@ -8,7 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import axios from "axios";
+import api from "../api/axiosInstance";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 
@@ -183,8 +183,8 @@ export default function AttendanceReview() {
     formDataToSend.append("attendance", JSON.stringify(attendanceData));
 
     try {
-      await axios.post(
-        "http://localhost:8000/submit-attendance",
+      await api.post(
+        "/submit-attendance",
         formDataToSend
       );
       alert("Attendance saved successfully!");

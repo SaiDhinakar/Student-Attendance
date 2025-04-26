@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Filter, Download, X, ChevronDown, ChevronUp } from "lucide-react";
-import axios from "axios";
 import * as XLSX from "xlsx";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import api from "../api/axiosInstance";
 
 export default function AttendanceReport() {
   const navigate = useNavigate();
@@ -39,8 +39,8 @@ export default function AttendanceReport() {
     }
 
     // Fetch departments first
-    axios
-      .get("http://localhost:8000/departments")
+    api
+      .get("/departments")
       .then((response) => {
         console.log("Departments loaded:", response.data);
         setDepartments(response.data);
@@ -58,7 +58,7 @@ export default function AttendanceReport() {
   const fetchInitialAttendance = async () => {
     try {
       console.log("Fetching initial attendance data");
-      const response = await axios.get("http://localhost:8000/attendance");
+      const response = await api.get("/attendance");
       
       console.log("Initial attendance data:", response.data);
       
@@ -121,8 +121,8 @@ export default function AttendanceReport() {
   // Fetch years when dept_name changes
   useEffect(() => {
     if (filters.dept_name) {
-      axios
-        .get(`http://localhost:8000/years/${filters.dept_name}`)
+      api
+        .get(`/years/${filters.dept_name}`)
         .then((response) => {
           setYears(response.data);
           // Reset dependent fields
@@ -145,8 +145,8 @@ export default function AttendanceReport() {
   // Fetch sections when year changes
   useEffect(() => {
     if (filters.dept_name && filters.year) {
-      axios
-        .get(`http://localhost:8000/sections/${filters.dept_name}/${filters.year}`)
+      api
+        .get(`/sections/${filters.dept_name}/${filters.year}`)
         .then((response) => {
           setSections(response.data);
           // Reset section when year changes
@@ -212,9 +212,7 @@ export default function AttendanceReport() {
       console.log("Sending request with params:", params);
       
       // Make the API call using axios
-      const response = await axios.get("http://localhost:8000/attendance", {
-        params,
-      });
+      const response = await api.get("/attendance", { params });
       console.log("API Response received:", response.data);
       
       
@@ -355,7 +353,7 @@ export default function AttendanceReport() {
     setIsFilterModalOpen(false);
     
     // Fetch all attendance data without filters
-    axios.get("http://localhost:8000/attendance")
+    api.get("/attendance")
       .then(response => {
         console.log("Reset: fetched all attendance data", response.data);
         if (response.data.attendance && response.data.attendance.length > 0) {

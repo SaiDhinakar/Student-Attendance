@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Calendar, Clock, FileText, ArrowRight, ArrowLeft } from "lucide-react";
 import { NavLink } from 'react-router-dom';
 import { Home, CheckCircle, Shield } from 'lucide-react';
-import axios from "axios";
+import api from "../api/axiosInstance";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import Header from "../components/Header";
@@ -52,8 +52,8 @@ const AttendanceForm = () => {
       date: now,
     }));
 
-    axios
-      .get("http://localhost:8000/departments")
+    api
+      .get("/departments")
       .then((response) => setDepartments(response.data))
       .catch((error) => {
         console.error("Error fetching departments:", error);
@@ -64,8 +64,8 @@ const AttendanceForm = () => {
   // Fetch years when dept_name changes
   useEffect(() => {
     if (formData.dept_name) {
-      axios
-        .get(`http://localhost:8000/years/${formData.dept_name}`)
+      api
+        .get(`/years/${formData.dept_name}`)
         .then((response) => setYears(response.data))
         .catch((error) => {
           console.error("Error fetching years:", error);
@@ -86,19 +86,17 @@ const AttendanceForm = () => {
   // Fetch sections and subjects when year changes
   useEffect(() => {
     if (formData.dept_name && formData.year) {
-      axios
-        .get(
-          `http://localhost:8000/sections/${formData.dept_name}/${formData.year}`
-        )
+      api.get(
+        `/sections/${formData.dept_name}/${formData.year}`
+      )
         .then((response) => setSections(response.data))
         .catch((error) => {
           console.error("Error fetching sections:", error);
           setError("Failed to load sections");
         });
-      axios
-        .get(
-          `http://localhost:8000/subjects/${formData.dept_name}/${formData.year}`
-        )
+      api.get(
+        `/subjects/${formData.dept_name}/${formData.year}`
+      )
         .then((response) => setSubjects(response.data))
         .catch((error) => {
           console.error("Error fetching subjects:", error);
@@ -150,8 +148,8 @@ const AttendanceForm = () => {
 
     const batchYear = parseInt(formData.year);
 
-    axios
-      .get(`http://localhost:8000/time-blocks/${batchYear}`)
+    api
+      .get(`/time-blocks/${batchYear}`)
       .then((response) => {
         setTimeBlocks(response.data);
 
@@ -245,8 +243,8 @@ const AttendanceForm = () => {
         })
         .replace(/\//g, "/");
 
-      const response = await axios.post(
-        "http://localhost:8000/create-timetable-slot",
+      const response = await api.post(
+        "/create-timetable-slot",
         {
           dept_name: formData.dept_name,
           year: parseInt(formData.year),

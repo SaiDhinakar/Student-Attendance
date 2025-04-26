@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
-import axios from "axios";
 import { Filter, ChevronDown, ChevronUp, ChevronRight, Calendar } from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import api from "../api/axiosInstance";
 
 export default function AdminPage() {
   const [filters, setFilters] = useState({
@@ -28,8 +28,8 @@ export default function AdminPage() {
 
   // Fetch departments on component mount
   useEffect(() => {
-    axios
-      .get("http://localhost:8000/departments")
+    api
+      .get("/departments")
       .then((response) => setDepartments(response.data))
       .catch((error) => console.error("Error fetching departments:", error));
   }, []);
@@ -37,8 +37,8 @@ export default function AdminPage() {
   // Fetch years when department changes
   useEffect(() => {
     if (filters.dept_name) {
-      axios
-        .get(`http://localhost:8000/years/${filters.dept_name}`)
+      api
+        .get(`/years/${filters.dept_name}`)
         .then((response) => setYears(response.data))
         .catch((error) => console.error("Error fetching years:", error));
 
@@ -56,13 +56,13 @@ export default function AdminPage() {
   // Fetch sections and subjects when year changes
   useEffect(() => {
     if (filters.dept_name && filters.year) {
-      axios
-        .get(`http://localhost:8000/sections/${filters.dept_name}/${filters.year}`)
+      api
+        .get(`/sections/${filters.dept_name}/${filters.year}`)
         .then((response) => setSections(response.data))
         .catch((error) => console.error("Error fetching sections:", error));
 
-      axios
-        .get(`http://localhost:8000/subjects/${filters.dept_name}/${filters.year}`)
+      api
+        .get(`/subjects/${filters.dept_name}/${filters.year}`)
         .then((response) => setSubjects(response.data))
         .catch((error) => console.error("Error fetching subjects:", error));
 
@@ -111,7 +111,7 @@ export default function AdminPage() {
     }
 
     try {
-      const response = await axios.get(`http://localhost:8000/attendance?${params.toString()}`);
+      const response = await api.get(`/attendance?${params.toString()}`);
       if (!response.data) {
         setError("No attendance records found for the selected filters");
         setAttendanceData([]);

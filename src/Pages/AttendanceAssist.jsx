@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { Menu, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../api/axiosInstance';
 import Header from '../components/Header'
 
 export default function AttendanceAssist() {
@@ -74,12 +74,10 @@ export default function AttendanceAssist() {
     formData.append("threshold", "0.45");
   
     try {
-      const response = await axios.post(
-        "http://localhost:8000/process-images",
+      const response = await api.post(
+        "/process-images",
         formData,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        }
+        { headers: { "Content-Type": "multipart/form-data" } }
       );
   
       console.log("Backend response:", response.data);

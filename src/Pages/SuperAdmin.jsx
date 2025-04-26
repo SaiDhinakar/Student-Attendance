@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/axiosInstance';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import { ChevronRight, ChevronDown } from 'lucide-react';
 
 export default function SuperAdmin() {
   const [activeTab, setActiveTab] = useState('departments');
@@ -41,18 +42,38 @@ export default function SuperAdmin() {
   // Edit modal state
   const [editModal, setEditModal] = useState({ isOpen: false, type: '', data: null });
 
+  // Search state
+  const [studentSearch, setStudentSearch] = useState('');
+
+  // track collapsed departments
+  const [collapsedDepts, setCollapsedDepts] = useState({});
+
+  // track collapsed sections
+  const [collapsedSections, setCollapsedSections] = useState({});
+  const toggleSection = (dept, year, section) => {
+    const key = `${dept}|${year}|${section}`;
+    setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const toggleDept = (dept) => {
+    setCollapsedDepts(prev => ({ 
+      ...prev, 
+      [dept]: !prev[dept] 
+    }));
+  };
+
   // Fetch initial data
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true);
-      setError(null);
       try {
+        setLoading(true);
+        setError(null);
         const [deptRes, batchRes, sectionRes, subjectRes, studentRes] = await Promise.all([
-          axios.get('http://localhost:8000/departments'),
-          axios.get('http://localhost:8000/batches'),
-          axios.get('http://localhost:8000/sections'),
-          axios.get('http://localhost:8000/subjects'),
-          axios.get('http://localhost:8000/students'),
+          api.get('/departments'),
+          api.get('/batches'),
+          api.get('/sections'),
+          api.get('/subjects'),
+          api.get('/students'),
         ]);
         setDepartments(deptRes.data);
         setBatches(batchRes.data);
@@ -72,7 +93,7 @@ export default function SuperAdmin() {
   const fetchTimeBlocks = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('http://localhost:8000/time-blocks');
+      const response = await api.get('/time-blocks');
       setTimeBlocks(response.data);
       setLoading(false);
     } catch (error) {
@@ -84,10 +105,10 @@ export default function SuperAdmin() {
   // CRUD Handlers
   const handleAdd = async (e, type, payload) => {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
     try {
-      const response = await axios.post(`http://localhost:8000/${type}`, payload);
+      setLoading(true);
+      setError(null);
+      const response = await api.post(`/${type}`, payload);
       
       // Update state without changing active tab
       if (type === 'departments') {
@@ -116,7 +137,7 @@ export default function SuperAdmin() {
     e.preventDefault(); // Ensure this is present
     try {
       setLoading(true);
-      const response = await axios.post('http://localhost:8000/time-blocks', {
+      const response = await api.post('/time-blocks', {
         batch_year: parseInt(timeBlockYear),
         block_number: parseInt(timeBlockNumber),
         start_time: timeBlockStartTime,
@@ -148,7 +169,7 @@ export default function SuperAdmin() {
   const handleEditTimeBlock = async (data) => {
     try {
       setLoading(true);
-      await axios.put(`http://localhost:8000/time-blocks/${data.time_block_id}`, {
+      await api.put(`/time-blocks/${data.time_block_id}`, {
         batch_year: parseInt(data.batch_year),
         block_number: parseInt(data.block_number),
         start_time: data.start_time,
@@ -180,27 +201,27 @@ export default function SuperAdmin() {
   const handleUpdate = async (e) => {
     e.preventDefault();
     const { type, data } = editModal;
-    setLoading(true);
-    setError(null);
     try {
+      setLoading(true);
+      setError(null);
       let response;
       if (type === 'departments') {
-        response = await axios.put(`http://localhost:8000/departments/${data.old_name}`, { dept_name: data.dept_name });
+        response = await api.put(`/departments/${data.old_name}`, { dept_name: data.dept_name });
         setDepartments(departments.map(d => d.dept_name === data.old_name ? response.data : d));
       } else if (type === 'batches') {
-        response = await axios.put(`http://localhost:8000/batches/${data.batch_id}`, {
+        response = await api.put(`/batches/${data.batch_id}`, {
           dept_name: data.dept_name,
           year: data.year,
         });
         setBatches(batches.map(b => b.batch_id === data.batch_id ? response.data : b));
       } else if (type === 'sections') {
-        response = await axios.put(`http://localhost:8000/sections/${data.section_id}`, {
+        response = await api.put(`/sections/${data.section_id}`, {
           batch_id: data.batch_id,
           section_name: data.section_name,
         });
         setSections(sections.map(s => s.section_id === data.section_id ? response.data : s));
       } else if (type === 'subjects') {
-        response = await axios.put(`http://localhost:8000/subjects/${data.old_code}`, {
+        response = await api.put(`/subjects/${data.old_code}`, {
           subject_code: data.subject_code,
           subject_name: data.subject_name,
           dept_name: data.dept_name,
@@ -208,14 +229,14 @@ export default function SuperAdmin() {
         });
         setSubjects(subjects.map(s => s.subject_code === data.old_code ? response.data : s));
       } else if (type === 'students') {
-        response = await axios.put(`http://localhost:8000/students/${data.old_reg_num}`, {
+        response = await api.put(`/students/${data.old_reg_num}`, {
           register_number: data.register_number,
           name: data.name,
           section_id: data.section_id,
         });
         setStudents(students.map(s => s.register_number === data.old_reg_num ? response.data : s));
       } else if (type === 'time-blocks') {
-        await axios.put(`http://localhost:8000/time-blocks/${data.time_block_id}`, {
+        await api.put(`/time-blocks/${data.time_block_id}`, {
           batch_year: parseInt(data.batch_year),
           block_number: parseInt(data.block_number),
           start_time: data.start_time,
@@ -236,14 +257,12 @@ export default function SuperAdmin() {
   };
 
   const handleDelete = async (type, id, e) => {
-    // Accept the event parameter and prevent default
-    if (e) e.preventDefault();
-    
+    e.preventDefault();
     if (!window.confirm(`Are you sure you want to delete this ${type.slice(0, -1)}?`)) return;
-    setLoading(true);
-    setError(null);
     try {
-      await axios.delete(`http://localhost:8000/${type}/${id}`);
+      setLoading(true);
+      setError(null);
+      await api.delete(`/${type}/${id}`);
       if (type === 'departments') setDepartments(departments.filter(d => d.dept_name !== id));
       if (type === 'batches') setBatches(batches.filter(b => b.batch_id !== id));
       if (type === 'sections') setSections(sections.filter(s => s.section_id !== id));
@@ -263,7 +282,7 @@ export default function SuperAdmin() {
   const handleDeleteTimeBlock = async (id) => {
     try {
       setLoading(true);
-      await axios.delete(`http://localhost:8000/time-blocks/${id}`);
+      await api.delete(`/time-blocks/${id}`);
 
       // Update the timeBlocks state directly rather than fetching again
       setTimeBlocks(timeBlocks.filter(block => block.time_block_id !== id));
@@ -283,16 +302,16 @@ export default function SuperAdmin() {
       setError('Please select department, year, and upload a CSV file.');
       return;
     }
-    setLoading(true);
-    setError(null);
-
-    const formData = new FormData();
-    formData.append('file', csvFile);
-    formData.append('dept_name', csvDept);
-    formData.append('year', parseInt(csvYear));
-
     try {
-      const response = await axios.post('http://localhost:8000/upload-students-csv', formData, {
+      setLoading(true);
+      setError(null);
+
+      const formData = new FormData();
+      formData.append('file', csvFile);
+      formData.append('dept_name', csvDept);
+      formData.append('year', parseInt(csvYear));
+
+      const response = await api.post('/upload-students-csv', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       setStudents(response.data.students); // Update student list with upserted data
@@ -316,6 +335,25 @@ export default function SuperAdmin() {
     if (type === 'subjects') { setSubjectCode(''); setSubjectName(''); setSubjectDept(''); setSubjectYear(''); }
     if (type === 'students') { setStudentRegNum(''); setStudentName(''); setStudentSection(''); }
   };
+
+  // derive filtered list
+  const filteredStudents = students.filter(s =>
+    s.register_number.includes(studentSearch) ||
+    s.name.toLowerCase().includes(studentSearch.toLowerCase())
+  );
+
+  // group by dept → year → section
+  const groupedStudents = filteredStudents.reduce((acc, s) => {
+    const batch = batches.find(b => b.batch_id === s.batch_id) || {};
+    const dept = batch.dept_name || 'Unknown';
+    const year = batch.year || 'Unknown';
+    const section = s.section_name;
+    acc[dept] = acc[dept] || {};
+    acc[dept][year] = acc[dept][year] || {};
+    acc[dept][year][section] = acc[dept][year][section] || [];
+    acc[dept][year][section].push(s);
+    return acc;
+  }, {});
 
   const filteredTimeBlocks = timeBlocks;
 
@@ -676,7 +714,8 @@ export default function SuperAdmin() {
 
         {activeTab === 'students' && (
           <>
-            {/* Manual Add Form */}
+            {/* search bar, manual add, CSV upload */}
+        
             <form onSubmit={(e) => handleAdd(e, 'students', { register_number: studentRegNum, name: studentName, section_id: parseInt(studentSection) })} className="mb-6">
               <div className="flex gap-4 items-end flex-wrap">
                 <div className="flex-1 min-w-[200px]">
@@ -790,44 +829,84 @@ export default function SuperAdmin() {
               </div>
             </div>
 
-            {/* Students Table */}
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-gray-200">
-                  <th className="p-3 text-left text-gray-700">Register Number</th>
-                  <th className="p-3 text-left text-gray-700">Name</th>
-                  <th className="p-3 text-left text-gray-700">Section</th>
-                  <th className="p-3 text-left text-gray-700">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {students.map((student) => (
-                  <tr key={student.register_number} className="border-b">
-                    <td className="p-3">{student.register_number}</td>
-                    <td className="p-3">{student.name}</td>
-                    <td className="p-3">{student.section_name} (Batch {student.batch_id})</td>
-                    <td className="p-3">
-                      <button
-                        type="button"
-                        onClick={() => handleEdit('students', { ...student, old_reg_num: student.register_number })}
-                        className="px-3 py-1 bg-yellow-500 text-white rounded mr-2 hover:bg-yellow-600 disabled:bg-gray-400"
-                        disabled={loading}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => handleDelete('students', student.register_number, e)}
-                        className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:bg-gray-400"
-                        disabled={loading}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="mb-4">
+              <input
+                type="text"
+                value={studentSearch}
+                onChange={e => setStudentSearch(e.target.value)}
+                placeholder="Search by register # or name…"
+                className="w-full max-w-xs p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            {/* grouped students */}
+            <div className="mt-4">
+              {Object.entries(groupedStudents).map(([dept, years]) => (
+                <div key={dept} className="bg-white rounded-lg shadow p-4 mb-6">
+                  <div
+                    className="flex justify-between items-center cursor-pointer"
+                    onClick={() => toggleDept(dept)}
+                  >
+                    <h2 className="text-2xl font-semibold">{dept}</h2>
+                    {collapsedDepts[dept] ? (
+                      <ChevronRight size={20} />
+                    ) : (
+                      <ChevronDown size={20} />
+                    )}
+                  </div>
+                  {!collapsedDepts[dept] && (
+                    Object.entries(years).map(([year, sections]) => (
+                      <div key={year} className="border-l-4 border-blue-100 pl-4 mt-4">
+                        <h3 className="text-xl font-medium">{year} Year</h3>
+                        {Object.entries(sections).map(([section, studs]) => {
+                          const secKey = `${dept}|${year}|${section}`;
+                          return (
+                            <div key={section} className="border-l-4 border-blue-200 pl-4 mt-2">
+                              <div
+                                className="flex justify-between items-center cursor-pointer"
+                                onClick={() => toggleSection(dept, year, section)}
+                              >
+                                <h4 className="text-lg font-medium">Section {section}</h4>
+                                {collapsedSections[secKey] ? (
+                                  <ChevronRight size={18} />
+                                ) : (
+                                  <ChevronDown size={18} />
+                                )}
+                              </div>
+                              {!collapsedSections[secKey] && (
+                                <ul className="list-disc pl-6 mt-2 space-y-1">
+                                  {studs.map(st => (
+                                    <li key={st.register_number} className="flex justify-between">
+                                      <span>{st.register_number} – {st.name}</span>
+                                      <div className="flex gap-2">
+                                        <button
+                                          onClick={() => handleEdit('students', { ...st, old_reg_num: st.register_number })}
+                                          disabled={loading}
+                                          className="px-2 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                                        >
+                                          Edit
+                                        </button>
+                                        <button
+                                          onClick={e => handleDelete('students', st.register_number, e)}
+                                          disabled={loading}
+                                          className="px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                                        >
+                                          Delete
+                                        </button>
+                                      </div>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ))
+                  )}
+                </div>
+              ))}
+            </div>
           </>
         )}
 
@@ -1184,23 +1263,23 @@ export default function SuperAdmin() {
                   </div>
                 </>
               )}
-              <div className="flex gap-4">
-                <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400" disabled={loading}>
-                  {loading ? 'Saving...' : 'Save'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditModal({ isOpen: false, type: '', data: null })}
-                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-400"
-                  disabled={loading}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+                <div className="flex gap-4">
+                  <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400" disabled={loading}>
+                    {loading ? 'Saving...' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditModal({ isOpen: false, type: '', data: null })}
+                    className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:bg-gray-400"
+                    disabled={loading}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
     <Footer />
     </>

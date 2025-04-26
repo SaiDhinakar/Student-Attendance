@@ -1,6 +1,8 @@
+import os
 import json
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse
 from pydantic import BaseModel
 import sqlite3
 from pathlib import Path
@@ -18,20 +20,46 @@ import torchvision.transforms as transforms
 from scipy.spatial.distance import cosine
 from ultralytics import YOLO
 from backend.LightCNN.light_cnn import LightCNN_29Layers_v2  # Adjust path as needed
+from dotenv import load_dotenv
+import uvicorn
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Load environment variables from .env file
+
+# Load .env file if it exists
+load_dotenv()
+
+# trusted client IP (default: replace with your client IP or set via env)
+ALLOWED_CLIENT_IP = os.getenv("ALLOWED_CLIENT_IP", "127.0.0.1")
+# server host binding (default all interfaces)
+SERVER_HOST = os.getenv("SERVER_HOST", "0.0.0.0")
+SERVER_PORT = os.getenv("SERVER_PORT", "8000")
+
+print(ALLOWED_CLIENT_IP)
+print(SERVER_HOST)
+print(SERVER_PORT)
+
 app = FastAPI(title="AI Student Attendance System")
 
+# CORS setup (adjust origin to match your client host)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # React frontend
+    allow_origins=[f"http://{ALLOWED_CLIENT_IP}:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# middleware to reject any client except the trusted IP
+@app.middleware("http")
+async def restrict_remote_ip(request: Request, call_next):
+    client_ip = request.client.host
+    if client_ip != ALLOWED_CLIENT_IP:
+        return JSONResponse(status_code=403, content={"detail": "Forbidden"})
+    return await call_next(request)
 
 DB_PATH = "backend/attendance.db"
 
@@ -1574,5 +1602,4 @@ async def delete_attendance(attendance_id: int):
     return {"message": "Deleted"}
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host=SERVER_HOST, port=int(SERVER_PORT))
