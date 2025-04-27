@@ -1,17 +1,38 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom"; // for logout navigation and location
 import { Menu, X, Home, FileText, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom"; // Remove if not using routing
 
 export default function Header() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+  // state to hold current role and update on navigation
+  const [role, setRole] = useState(localStorage.getItem('role')?.toLowerCase());
+  useEffect(() => {
+    setRole(localStorage.getItem('role')?.toLowerCase());
+  }, [location]);
 
-  // Import additional icons at the top of the file:
-  
-  const navLinks = [
-    { to: "/", label: "Home", icon: <Home size={18} /> },
-    { to: "/report", label: "Report", icon: <FileText size={18} /> },
-    { to: "/superadmin", label: "Admin", icon: <ShieldCheck size={18} /> },
-  ];
+  const { pathname } = location;
+  // Define navigation links based on current page and role
+  let desktopLinks = [];
+  if (pathname === "/") {
+    // Home page: show only Login
+    desktopLinks = [{ to: "/admin-login", label: "Login" }];
+  } else if (pathname === "/admin-login") {
+    // Admin login page: show only Home
+    desktopLinks = [{ to: "/", label: "Home" }];
+  } else if (role === 'admin' || role === 'superadmin') {
+    // Admin pages: show Home and Logout, plus Admin link for superadmin
+    desktopLinks = [{ to: "/", label: "Home" }];
+    if (role === 'superadmin') desktopLinks.push({ to: "/superadmin", label: "Admin" });
+    desktopLinks.push({ logout: true, label: "Logout" });
+  }
+
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate('/');
+  };
 
   return (
     <>
@@ -19,7 +40,7 @@ export default function Header() {
       <header className="fixed top-0 z-50 w-full bg-white shadow-md h-24">
         <div className="flex items-center justify-between max-w-[1200px] w-[90%] mx-auto py-3">
           
-          {/* Sidebar Toggle (mobile only) */}
+          {/* Sidebar Toggle (mobile only) */}  
           <button
             className="md:hidden text-gray-700"
             onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -46,15 +67,17 @@ export default function Header() {
 
           {/* Desktop Nav Links */}
           <nav className="hidden md:flex gap-6 text-gray-800 font-medium">
-            {navLinks.map((link) => (
-              <Link
-                key={link.label}
-                to={link.to}
-                className="hover:text-green-700 transition-colors"
-              >
-                {link.label}
-              </Link>
-            ))}
+            {desktopLinks.map((link) =>
+              link.logout ? (
+                <button key="logout" onClick={handleLogout} className="hover:text-green-700 transition-colors">
+                  {link.label}
+                </button>
+              ) : (
+                <Link key={link.to} to={link.to} className="hover:text-green-700 transition-colors">
+                  {link.label}
+                </Link>
+              )
+            )}
           </nav>
         </div>
       </header>
@@ -72,17 +95,17 @@ export default function Header() {
           </button>
         </div>
         <nav className="p-4 space-y-4 text-gray-800">
-          {navLinks.map((link) => (
-            <Link
-              key={link.label}
-              to={link.to}
-              className="flex items-center gap-2"
-              onClick={() => setSidebarOpen(false)}
-            >
-              {link.icon}
-              {link.label}
-            </Link>
-          ))}
+          {desktopLinks.map((link) =>
+            link.logout ? (
+              <button key="logout" onClick={() => { setSidebarOpen(false); handleLogout(); }} className="flex items-center gap-2">
+                {link.label}
+              </button>
+            ) : (
+              <Link key={link.to} to={link.to} className="flex items-center gap-2" onClick={() => setSidebarOpen(false)}>
+                {link.label}
+              </Link>
+            )
+          )}
         </nav>
       </aside>
 

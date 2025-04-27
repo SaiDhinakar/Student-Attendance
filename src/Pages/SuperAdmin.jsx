@@ -33,6 +33,10 @@ export default function SuperAdmin() {
   const [timeBlockNumber, setTimeBlockNumber] = useState('');
   const [timeBlockStartTime, setTimeBlockStartTime] = useState('');
   const [timeBlockEndTime, setTimeBlockEndTime] = useState('');
+  // Admin CRUD states
+  const [admins, setAdmins] = useState([]);
+  const [adminUsername, setAdminUsername] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
 
   // CSV upload states
   const [csvDept, setCsvDept] = useState('');
@@ -68,18 +72,20 @@ export default function SuperAdmin() {
       try {
         setLoading(true);
         setError(null);
-        const [deptRes, batchRes, sectionRes, subjectRes, studentRes] = await Promise.all([
+        const [deptRes, batchRes, sectionRes, subjectRes, studentRes, adminRes] = await Promise.all([
           api.get('/departments'),
           api.get('/batches'),
           api.get('/sections'),
           api.get('/subjects'),
           api.get('/students'),
+          api.get('/admins'),
         ]);
         setDepartments(deptRes.data);
         setBatches(batchRes.data);
         setSections(sectionRes.data);
         setSubjects(subjectRes.data);
         setStudents(studentRes.data);
+        setAdmins(adminRes.data);
       } catch (error) {
         setError('Failed to load data: ' + (error.response?.data?.detail || error.message));
       } finally {
@@ -121,8 +127,9 @@ export default function SuperAdmin() {
         setSubjects([...subjects, response.data]);
       } else if (type === 'students') {
         setStudents([...students, response.data]);
+      } else if (type === 'admins') {
+        setAdmins([...admins, response.data]);
       }
-      
       setSuccessMessage(`${type.slice(0, -1)} added successfully`);
       setTimeout(() => setSuccessMessage(''), 3000);
       resetForm(type);
@@ -245,6 +252,9 @@ export default function SuperAdmin() {
 
         // Update timeBlocks state directly
         setTimeBlocks(timeBlocks.map(block => block.time_block_id === data.time_block_id ? { ...block, ...data } : block));
+      } else if (type === 'admins') {
+        response = await api.put(`/admins/${data.id}`, { username: data.username, password: data.password });
+        setAdmins(admins.map(a => a.id === data.id ? response.data : a));
       }
       setSuccessMessage(`${type.slice(0, -1)} updated successfully`);
       setTimeout(() => setSuccessMessage(''), 3000);
@@ -269,6 +279,7 @@ export default function SuperAdmin() {
       if (type === 'subjects') setSubjects(subjects.filter(s => s.subject_code !== id));
       if (type === 'students') setStudents(students.filter(s => s.register_number !== id));
       if (type === 'time-blocks') setTimeBlocks(timeBlocks.filter(b => b.time_block_id !== id));
+      if (type === 'admins') setAdmins(admins.filter(a => a.id !== id));
 
       setSuccessMessage(`${type.slice(0, -1)} deleted successfully`);
       setTimeout(() => setSuccessMessage(''), 3000);
@@ -334,6 +345,7 @@ export default function SuperAdmin() {
     if (type === 'sections') { setSectionBatch(''); setSectionName(''); }
     if (type === 'subjects') { setSubjectCode(''); setSubjectName(''); setSubjectDept(''); setSubjectYear(''); }
     if (type === 'students') { setStudentRegNum(''); setStudentName(''); setStudentSection(''); }
+    if (type === 'admins') { setAdminUsername(''); setAdminPassword(''); }
   };
 
   // derive filtered list
@@ -357,7 +369,7 @@ export default function SuperAdmin() {
 
   const filteredTimeBlocks = timeBlocks;
 
-  const tabs = ['departments', 'batches', 'sections', 'subjects', 'students', 'time-blocks'];
+  const tabs = ['departments', 'batches', 'sections', 'subjects', 'students', 'admins', 'time-blocks'];
 
   return (
     <>
@@ -910,6 +922,40 @@ export default function SuperAdmin() {
           </>
         )}
 
+        {activeTab === 'admins' && (
+          <>
+            <form onSubmit={(e) => handleAdd(e, 'admins', { username: adminUsername, password: adminPassword })} className="mb-6">
+              <div className="flex gap-4 items-end">
+                <div className="flex-1">
+                  <label className="block text-gray-700">Username</label>
+                  <input type="text" value={adminUsername} onChange={e => setAdminUsername(e.target.value)} required disabled={loading} className="w-full p-2 border rounded" />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-gray-700">Password</label>
+                  <input type="password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} required disabled={loading} className="w-full p-2 border rounded" />
+                </div>
+                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded" disabled={loading}>Add Admin</button>
+              </div>
+            </form>
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gray-200"><th className="p-3">Username</th><th className="p-3">Actions</th></tr>
+              </thead>
+              <tbody>
+                {admins.map(a => (
+                  <tr key={a.id} className="border-b">
+                    <td className="p-3">{a.username}</td>
+                    <td className="p-3">
+                      <button onClick={() => handleEdit('admins', a)} className="px-3 py-1 bg-yellow-500 text-white rounded mr-2" disabled={loading}>Edit</button>
+                      <button onClick={e => handleDelete('admins', a.id, e)} className="px-3 py-1 bg-red-500 text-white rounded" disabled={loading}>Delete</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+
         {activeTab === 'time-blocks' && (
           <>
             {/* Manual Add Form */}
@@ -1028,8 +1074,8 @@ export default function SuperAdmin() {
 
       {/* Edit Modal */}
       {editModal.isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+        <div className="fixed inset-0 bg-black bg-opacity-50">
+          <div className="bg-white p-6 rounded-lg">
             <h2 className="text-xl font-semibold mb-4">Edit {editModal.type.slice(0, -1)}</h2>
             {error && <div className="text-red-600 mb-4">{error}</div>}
             <form onSubmit={handleUpdate}>

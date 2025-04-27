@@ -5,8 +5,10 @@ import "react-datepicker/dist/react-datepicker.css";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import api from "../api/axiosInstance";
-
+import { useNavigate } from "react-router-dom";
 export default function AdminPage() {
+  const navigate = useNavigate();
+  const role = localStorage.getItem("role");
   const [filters, setFilters] = useState({
     dept_name: "",
     year: "",
