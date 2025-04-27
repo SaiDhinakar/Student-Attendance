@@ -1,0 +1,55 @@
+# AI Student Attendance System - Setup Instructions
+
+
+
+- Python: Version 3.13
+- Node: Version 22.14.0
+- npm: Version 11.3.0
+
+
+install Python requirements from requirements.txt
+
+pip install -r requirements.txt
+
+
+Environment Configuration
+Create a .env file in the project root with the following content:
+
+```
+# Backend settings
+ALLOWED_CLIENT_IP=127.0.0.1  
+SERVER_HOST=0.0.0.0
+SERVER_PORT=8000
+
+# Frontend settings (Vite uses VITE_ prefix)
+VITE_SERVER_BASE_URL=http://127.0.0.1:8000
+```
+
+Adjust the values according to your deployment environment:
+- For local development, use 127.0.0.1
+- For production, set ALLOWED_CLIENT_IP to the IP address of your frontend server
+
+
+## Frontend Setup
+
+Install Node Dependencies
+
+```bash
+npm install
+```
+
+Run the frontend 
+
+```bash
+npm run dev -- --host 0.0.0.0
+```
+
+## Running the Application
+
+Start the Backend Server
+
+```bash
+python main.py
+```
+
+access application via - http://127.0.0.1:5173

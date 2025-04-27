@@ -19,7 +19,7 @@ from PIL import Image
 import torchvision.transforms as transforms
 from scipy.spatial.distance import cosine
 from ultralytics import YOLO
-from backend.LightCNN.light_cnn import LightCNN_29Layers_v2  # Adjust path as needed
+from backend.LightCNN.light_cnn import LightCNN_29Layers_v2  
 from dotenv import load_dotenv
 import uvicorn
 import bcrypt
@@ -231,7 +231,7 @@ def load_gallery(dept_name: str, year: int, section_name: str):
         return {}
 
 # Process image (using enhancements from old code)
-def process_image(image_bytes, threshold=0.45, gallery=None):
+def process_image(image_bytes, threshold=0.50, gallery=None):
     try:
         nparr = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -242,7 +242,7 @@ def process_image(image_bytes, threshold=0.45, gallery=None):
         detected_ids = set()
         
         # Detect faces using YOLO
-        results = yolo_model(img)
+        results = yolo_model(img,conf=0.75)
         logger.info(f"YOLO detected {len(results[0].boxes)} faces")
 
         # Step 1: Get all faces and their embeddings
@@ -255,6 +255,10 @@ def process_image(image_bytes, threshold=0.45, gallery=None):
                 pad_x, pad_y = int(face_w * 0.2), int(face_h * 0.2)
                 x1, y1 = max(0, x1 - pad_x), max(0, y1 - pad_y)
                 x2, y2 = min(w, x2 + pad_x), min(h, y2 + pad_y)
+
+                if (x2 - x1) < 32 or (y2 - y1) < 32:
+                    print(f"Skipping face too small ({x2-x1}x{y2-y1})")
+                    continue
 
                 face = img[y1:y2, x1:x2]
                 if face.size == 0:
@@ -654,7 +658,7 @@ async def process_images(
     date: str = Form(...),
     start_time: str = Form(...),
     end_time: str = Form(...),
-    threshold: float = Form(0.45)
+    threshold: float = Form(0.550)
 ):
     if face_model is None or yolo_model is None:
         logger.error("Models not loaded")
