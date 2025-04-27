@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Menu, X, Home, UserCog, LogIn, LogOut } from "lucide-react";
+import { Menu, X, Home, UserCog, LogIn, LogOut, FileTextIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export default function Header() {
@@ -38,11 +38,17 @@ export default function Header() {
       }
     } else {
       // Logged in - show role-specific links
-      if (role === 'superadmin') {
-        links.push({ to: "/superadmin", label: "Admin Dashboard", icon: <UserCog size={20} /> });
-      } else if (role === 'admin') {
-        links.push({ to: "/report", label: "Admin Dashboard", icon: <UserCog size={20} /> });
+      if(pathname === "/report"){
+        links.push({ to: "/superadmin", label: "SuperAdmin", icon: <UserCog size={20} /> });
+      }else if(pathname === "/superadmin"){
+        links.push({ to: "/report", label: "Report", icon: <FileTextIcon size={20} /> });
       }
+      
+      // if (role === 'superadmin') {
+      //   links.push({ to: "/superadmin", label: "Admin Dashboard", icon: <UserCog size={20} /> });
+      // } else if (role === 'admin') {
+      //   links.push({ to: "/report", label: "Admin Dashboard", icon: <UserCog size={20} /> });
+      // }
       
       // Always show logout for authenticated users
       links.push({ logout: true, label: "Logout", icon: <LogOut size={20} /> });
