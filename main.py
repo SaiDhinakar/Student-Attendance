@@ -53,7 +53,7 @@ app = FastAPI(title="AI Student Attendance System")
 # CORS setup (adjust origin to match your client host)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://192.168.8.86:5173"],
+    allow_origins=["https://student-attendance-p88vpp3vg-saidhin27-gmailcoms-projects.vercel.app/"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
