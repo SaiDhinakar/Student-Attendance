@@ -145,36 +145,47 @@ const AttendanceForm = () => {
       setError("Please fill all class details");
       return;
     }
-
+  
     const batchYear = parseInt(formData.year);
-
+  
     api
-      .get(`/time-blocks/${batchYear}`)
+      .get(`/current-time-block/${batchYear}`)
       .then((response) => {
-        setTimeBlocks(response.data);
-
+        const result = response.data;
+        console.log("API Response:", result);
+  
+        if (!result.success) {
+          setError(result.message || "No active time block found for selected year");
+          return;
+        }
+  
+        const block = result.data; 
+        const blockArray = [block]; 
+  
+        setTimeBlocks(blockArray);
+  
         const now = new Date();
         const currentTime = now.toLocaleTimeString("en-US", {
           hour: "2-digit",
           minute: "2-digit",
           hour12: false,
         });
-
-        const sortedTimeBlocks = [...response.data].sort((a, b) => {
+  
+        const sortedTimeBlocks = blockArray.sort((a, b) => {
           return (
             convertTimeStringToMinutes(a.start_time) -
             convertTimeStringToMinutes(b.start_time)
           );
         });
-
+  
         const currentBlock = sortedTimeBlocks.find((block) => {
           const startMinutes = convertTimeStringToMinutes(block.start_time);
           const endMinutes = convertTimeStringToMinutes(block.end_time);
           const currentMinutes = convertTimeStringToMinutes(currentTime);
-
+  
           return currentMinutes >= startMinutes && currentMinutes < endMinutes;
         });
-
+  
         if (currentBlock) {
           setSelectedTimeBlock(currentBlock);
           setFormData((prev) => ({
@@ -189,10 +200,10 @@ const AttendanceForm = () => {
               convertTimeStringToMinutes(block.start_time) >
               convertTimeStringToMinutes(currentTime)
           );
-
+  
           const blockToUse =
             upcomingBlock || (sortedTimeBlocks.length > 0 ? sortedTimeBlocks[0] : null);
-
+  
           if (blockToUse) {
             setSelectedTimeBlock(blockToUse);
             setFormData((prev) => ({
@@ -203,7 +214,7 @@ const AttendanceForm = () => {
             }));
           }
         }
-
+  
         setCurrentSlide(2);
         setError(null);
       })
@@ -211,7 +222,7 @@ const AttendanceForm = () => {
         console.error("Error fetching time blocks:", error);
         setError("Failed to load time blocks for selected year");
       });
-  };
+  };  
 
   const handleBack = () => {
     setCurrentSlide(1);

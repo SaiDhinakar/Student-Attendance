@@ -1,5 +1,7 @@
 import os
 import json
+import uuid
+import re
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
@@ -51,7 +53,7 @@ app = FastAPI(title="AI Student Attendance System")
 # CORS setup (adjust origin to match your client host)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[f"http://{ALLOWED_CLIENT_IP}:5173"],
+    allow_origins=["http://192.168.8.86:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -61,7 +63,7 @@ app.add_middleware(
 @app.middleware("http")
 async def restrict_remote_ip(request: Request, call_next):
     client_ip = request.client.host
-    if client_ip != ALLOWED_CLIENT_IP:
+    if not client_ip.startswith("192.168."):
         return JSONResponse(status_code=403, content={"detail": "Forbidden"})
     return await call_next(request)
 
@@ -230,13 +232,45 @@ def load_gallery(dept_name: str, year: int, section_name: str):
         logger.error(f"Error loading gallery {gallery_path}: {e}")
         return {}
 
+def generate_image_filename(dept_name, year, section_name, date, subject_code, time_slot, suffix=""):
+    # Clean inputs to make them safe for filenames
+    dept_clean = re.sub(r'[^\w]', '_', dept_name)
+    section_clean = re.sub(r'[^\w]', '_', section_name)
+    subject_clean = re.sub(r'[^\w]', '_', subject_code)
+    date_clean = re.sub(r'[^\w-]', '_', date)
+    time_slot_clean = re.sub(r'[^\w-]', '_', time_slot)
+    
+    # Create base filename
+    base_name = f"{dept_clean}_{year}_{section_clean}_{date_clean}_{subject_clean}_{time_slot_clean}"
+    
+    # Add suffix if provided
+    if suffix:
+        base_name = f"{base_name}_{suffix}"
+        
+    # Add unique identifier to prevent collisions
+    unique_id = uuid.uuid4().hex[:8]
+    
+    return f"{base_name}_{unique_id}"
+
 # Process image (using enhancements from old code)
-def process_image(image_bytes, threshold=0.50, gallery=None):
+def process_image(image_bytes, threshold=0.50, gallery=None, save_path=None, filename_base=None, img_index=None):
     try:
         nparr = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         if img is None:
             raise ValueError("Could not decode image")
+
+        # Create image directory if it doesn't exist
+        if save_path and not os.path.exists(save_path):
+            os.makedirs(save_path, exist_ok=True)
+            
+        # Save original image if path is provided
+        if save_path and filename_base:
+            suffix = f"-{img_index}" if img_index is not None else ""
+            orig_filename = f"{filename_base}{suffix}_original.jpg"
+            orig_path = os.path.join(save_path, orig_filename)
+            cv2.imwrite(orig_path, img)
+            logger.info(f"Saved original image to {orig_path}")
 
         result_img = img.copy()
         detected_ids = set()
@@ -315,6 +349,14 @@ def process_image(image_bytes, threshold=0.50, gallery=None):
             cv2.rectangle(result_img, (x1, y1), (x2, y2), color, 2)
             label = f"{best_match} ({best_score:.2f})" if best_match != "Unknown" else "Unknown"
             cv2.putText(result_img, label, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+
+        # Save the annotated image if path is provided
+        if save_path and filename_base:
+            suffix = f"-{img_index}" if img_index is not None else ""
+            annotated_filename = f"{filename_base}{suffix}_annotated.jpg"
+            annotated_path = os.path.join(save_path, annotated_filename)
+            cv2.imwrite(annotated_path, result_img)
+            logger.info(f"Saved annotated image to {annotated_path}")
 
         _, buffer = cv2.imencode('.jpg', result_img)
         img_base64 = base64.b64encode(buffer).decode('utf-8')
@@ -456,13 +498,14 @@ async def startup_event():
 # Get current time block
 
 # Get all time blocks
-@app.get("/time-blocks", response_model=List[TimeBlockResponse])
+@app.get("/time-block", response_model=List[TimeBlockResponse])
 async def get_all_time_blocks():
     conn = get_db_connection()
     cursor = conn.cursor()
     
     cursor.execute("SELECT * FROM TimeBlocks ORDER BY batch_year, block_number")
     blocks = cursor.fetchall()
+    print(blocks)
     conn.close()
     
     return [dict(block) for block in blocks]
@@ -471,29 +514,38 @@ async def get_all_time_blocks():
 @app.get("/current-time-block/{batch_year}")
 async def get_current_time_block(batch_year: int):
     now = datetime.now()
-    current_time = now.strftime("%H:%M")
-    
+    current_time = now.strftime("%I:%M")  # Use 12-hour format with AM/PM
+    current_time_24h = now.strftime("%H:%M")  # Use 24-hour format with AM/PM
+    print(f"Current Time: {type(current_time)}")
+
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Find the block where current time falls between start and end time
     cursor.execute(
         """
         SELECT * FROM TimeBlocks 
         WHERE batch_year = ? 
-        AND time(?) >= time(start_time) 
-        AND time(?) < time(end_time)
+        AND (
+            (instr(start_time, ':') = 2 AND time('0' || start_time) <= time(?))
+            OR (instr(start_time, ':') > 2 AND time(start_time) <= time(?))
+        )
+        AND (
+            (instr(end_time, ':') = 2 AND time('0' || end_time) > time(?))
+            OR (instr(end_time, ':') > 2 AND time(end_time) > time(?))
+        )
+        ORDER BY start_time ASC
         """,
-        (batch_year, current_time, current_time)
+        (batch_year, current_time, current_time, current_time, current_time)
     )
     
     block = cursor.fetchone()
+    print("Blocks:",block)
     conn.close()
     
     if block:
-        return dict(block)
+        return {"success": True, "data": dict(block)}
     else:
-        return {"message": "No active time block found for current time"}
+        return {"success": False, "message": "No active time block found for current time"}
 
 # Admin endpoints to manage time blocks
 @app.post("/time-blocks", response_model=TimeBlockResponse)
@@ -753,9 +805,11 @@ async def process_images(
         # Process images
         detected_students = set()
         images_base64 = []
-        for image in images:
+        save_path = f"./processed_images/{dept_name}/{year}/{section_name}/{date}/{subject_code}"
+        filename_base = generate_image_filename(dept_name, year, section_name, date, subject_code, f"{start_time}-{end_time}")
+        for img_index, image in enumerate(images):
             contents = await image.read()
-            img_base64, detected_ids = process_image(contents, threshold, gallery)
+            img_base64, detected_ids = process_image(contents, threshold, gallery, save_path, filename_base, img_index)
             images_base64.append(img_base64)
             detected_students.update(detected_ids)
             
@@ -1008,6 +1062,7 @@ async def delete_attendance(attendance_id: int):
         logger.error(f"Error in /delete-attendance: {e}")
         raise HTTPException(status_code=500, detail=f"Error deleting attendance: {str(e)}")
    
+
 # Super Admin Endpoints
 @app.get("/batches", response_model=List[BatchResponse])
 async def get_batches(current_user: dict = Depends(get_current_admin)):
