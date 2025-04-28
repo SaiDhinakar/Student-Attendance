@@ -53,7 +53,7 @@ app = FastAPI(title="AI Student Attendance System")
 # CORS setup (adjust origin to match your client host)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://192.168.8.86:5173"],
+    allow_origins=["http://192.168.31.96:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -254,7 +254,7 @@ def generate_image_filename(dept_name, year, section_name, date, subject_code, t
     return f"{base_name}_{unique_id}"
 
 # Process image (using enhancements from old code)
-def process_image(image_bytes, threshold=0.50, gallery=None, save_path=None, filename_base=None, img_index=None):
+def process_image(image_bytes, threshold=0.5, gallery=None, save_path=None, filename_base=None, img_index=None):
     try:
         nparr = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -277,7 +277,7 @@ def process_image(image_bytes, threshold=0.50, gallery=None, save_path=None, fil
         detected_ids = set()
         
         # Detect faces using YOLO
-        results = yolo_model(img,conf=0.75)
+        results = yolo_model(img,conf=0.6)
         logger.info(f"YOLO detected {len(results[0].boxes)} faces")
 
         # Step 1: Get all faces and their embeddings
@@ -711,7 +711,7 @@ async def process_images(
     date: str = Form(...),
     start_time: str = Form(...),
     end_time: str = Form(...),
-    threshold: float = Form(0.550)
+    threshold: float = Form(0.450)
 ):
     if face_model is None or yolo_model is None:
         logger.error("Models not loaded")
@@ -806,7 +806,7 @@ async def process_images(
         # Process images
         detected_students = set()
         images_base64 = []
-        save_path = f"./processed_images/{dept_name}/{year}/{section_name}/{date}/{subject_code}"
+        save_path = f"./processed_images/{dept_name}/{year}/{section_name}"
         filename_base = generate_image_filename(dept_name, year, section_name, date, subject_code, f"{start_time}-{end_time}")
         for img_index, image in enumerate(images):
             contents = await image.read()
