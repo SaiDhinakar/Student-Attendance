@@ -160,6 +160,55 @@ export default function SuperAdmin() {
     }
   };
 
+  const handleAddAdmin = async (e) => {
+    e.preventDefault();
+    
+    if (!adminUsername || !adminPassword || !adminRole) {
+      setError("Username, password, and role are required");
+      return;
+    }
+    
+    try {
+      console.log("Adding admin with data:", { 
+        username: adminUsername, 
+        role: adminRole, 
+        password: adminPassword 
+      });
+      
+      setLoading(true);
+      setError(null);
+      
+      const response = await api.post("/admins", {
+        username: adminUsername,
+        password: adminPassword,
+        role: adminRole
+      });
+      
+      console.log("Admin creation response:", response.data);
+      
+      // Make sure we're receiving the expected data structure
+      if (response.data) {
+        setAdmins([...admins, response.data]);
+        setSuccessMessage("Admin added successfully");
+        setTimeout(() => setSuccessMessage(""), 3000);
+        
+        // Reset form fields
+        setAdminUsername("");
+        setAdminPassword("");
+        setAdminRole("");
+      } else {
+        throw new Error("Invalid response from server");
+      }
+    } catch (error) {
+      console.error("Admin creation error:", error);
+      setError(
+        "Failed to add admin: " + (error.response?.data?.detail || error.message)
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAddTimeBlock = async (e) => {
     e.preventDefault(); // Ensure this is present
     try {
@@ -311,6 +360,7 @@ export default function SuperAdmin() {
         response = await api.put(`/admins/${data.id}`, {
           username: data.username,
           password: data.password,
+          role: data.role
         });
         setAdmins(admins.map((a) => (a.id === data.id ? response.data : a)));
       }
@@ -1230,7 +1280,7 @@ export default function SuperAdmin() {
                   Admin Roles
                 </h2>
                 <form
-                  onSubmit={(e) => handleAdd(e, "admins", { username: adminUsername, role: adminRole, password: adminPassword })}
+                  onSubmit={(e) => handleAddAdmin(e)}
                   className="mb-6"
                 >
                   <div className="flex gap-4 items-end">
@@ -1300,14 +1350,19 @@ export default function SuperAdmin() {
                         <td className="p-3">{admin.role}</td>
                         <td className="p-3">
                           <button
-                            onClick={() => handleEditAdmin(admin)}
+                            onClick={() => handleEdit("admins", {
+                              ...admin,
+                              password: ""  // Reset password field in edit modal
+                            })}
                             className="px-3 py-1 bg-yellow-500 text-white rounded mr-2 hover:bg-yellow-600"
+                            disabled={loading}
                           >
                             Edit
                           </button>
                           <button
-                            onClick={() => handleDeleteAdmin(admin.id)}
+                            onClick={(e) => handleDelete("admins", admin.id, e)}
                             className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                            disabled={loading}
                           >
                             Delete
                           </button>
@@ -1849,6 +1904,65 @@ export default function SuperAdmin() {
                     </div>
                   </>
                 )}
+                {editModal.type === "admins" && (
+                  <>
+                    <div className="mb-4">
+                      <label className="block text-gray-700 font-medium mb-2">
+                        Username
+                      </label>
+                      <input
+                        type="text"
+                        value={editModal.data.username}
+                        onChange={(e) =>
+                          setEditModal({
+                            ...editModal,
+                            data: { ...editModal.data, username: e.target.value },
+                          })
+                        }
+                        className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                        required
+                        disabled={loading}
+                      />
+                    </div>
+                    <div className="mb-4">
+                      <label className="block text-gray-700 font-medium mb-2">
+                        Role
+                      </label>
+                      <select
+                        value={editModal.data.role}
+                        onChange={(e) =>
+                          setEditModal({
+                            ...editModal,
+                            data: { ...editModal.data, role: e.target.value },
+                          })
+                        }
+                        className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                        required
+                        disabled={loading}
+                      >
+                        <option value="admin">Admin</option>
+                        <option value="superadmin">Superadmin</option>
+                      </select>
+                    </div>
+                    <div className="mb-4">
+                      <label className="block text-gray-700 font-medium mb-2">
+                        New Password (leave blank to keep current)
+                      </label>
+                      <input
+                        type="password"
+                        value={editModal.data.password || ""}
+                        onChange={(e) =>
+                          setEditModal({
+                            ...editModal,
+                            data: { ...editModal.data, password: e.target.value },
+                          })
+                        }
+                        className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                        disabled={loading}
+                      />
+                    </div>
+                  </>
+                )}
                 <div className="flex gap-4">
                   <button
                     type="submit"
@@ -1877,70 +1991,3 @@ export default function SuperAdmin() {
     </>
   );
 }
-
-// Add handlers for edit and delete actions
-const handleEditAdmin = async (admin) => {
-  try {
-    setLoading(true);
-    setError(null);
-    const response = await api.put(`/admins/${admin.id}`, {
-      username: admin.username,
-      password: admin.password,
-      role: admin.role,
-    });
-    setAdmins((prevAdmins) =>
-      prevAdmins.map((a) => (a.id === admin.id ? response.data : a))
-    );
-    setSuccessMessage("Admin updated successfully");
-    setTimeout(() => setSuccessMessage(""), 3000);
-  } catch (error) {
-    setError(
-      "Failed to update admin: " + (error.response?.data?.detail || error.message)
-    );
-  } finally {
-    setLoading(false);
-  }
-};
-
-const handleDeleteAdmin = async (adminId) => {
-  if (!window.confirm("Are you sure you want to delete this admin?")) return;
-  try {
-    setLoading(true); // Ensure setLoading is defined and accessible
-    setError(null);
-    await api.delete(`/admins/${adminId}`);
-    setAdmins((prevAdmins) => prevAdmins.filter((a) => a.id !== adminId));
-    setSuccessMessage("Admin deleted successfully");
-    setTimeout(() => setSuccessMessage(""), 3000);
-  } catch (error) {
-    setError(
-      "Failed to delete admin: " + (error.response?.data?.detail || error.message)
-    );
-  } finally {
-    setLoading(false); // Ensure setLoading is defined and accessible
-  }
-};
-
-const handleAddAdmin = async (e) => {
-  e.preventDefault();
-  try {
-    setLoading(true);
-    setError(null);
-    const response = await api.post("/admins", {
-      username: adminUsername,
-      password: adminPassword,
-      role: adminRole,
-    });
-    setAdmins((prevAdmins) => [...prevAdmins, response.data]);
-    setSuccessMessage("Admin added successfully");
-    setTimeout(() => setSuccessMessage(""), 3000);
-    setAdminUsername("");
-    setAdminPassword("");
-    setAdminRole("");
-  } catch (error) {
-    setError(
-      "Failed to add admin: " + (error.response?.data?.detail || error.message)
-    );
-  } finally {
-    setLoading(false);
-  }
-};

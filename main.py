@@ -208,6 +208,7 @@ class TimeBlockResponse(BaseModel):
 class AdminLoginRequest(BaseModel):
     username: str
     password: str
+    role: Optional[str] = "admin"
 
 # Load gallery from .pth file
 def load_gallery(dept_name: str, year: int, section_name: str):
@@ -1715,12 +1716,12 @@ async def create_admin(user: AdminLoginRequest, current_user: dict = Depends(get
     try:
         cursor.execute(
             "INSERT INTO Admins (username, password_hash, role) VALUES (?, ?, ?)",
-            (user.username, pwd_hash, "admin")
+            (user.username, pwd_hash, user.role)
         )
         conn.commit()
         new_id = cursor.lastrowid
         conn.close()
-        return {"id": new_id, "username": user.username, "role": "admin"}
+        return {"id": new_id, "username": user.username, "role": user.role}
     except sqlite3.IntegrityError:
         conn.close()
         raise HTTPException(status_code=400, detail="Username already exists")
@@ -1729,19 +1730,31 @@ async def create_admin(user: AdminLoginRequest, current_user: dict = Depends(get
 async def update_admin(admin_id: int, user: AdminLoginRequest, current_user: dict = Depends(get_current_admin)):
     if current_user["role"] != "superadmin":
         raise HTTPException(status_code=403, detail="Forbidden")
-    pwd_hash = hash_password(user.password)
+    
     conn = get_admin_db_connection()
     cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE Admins SET username = ?, password_hash = ? WHERE id = ?", 
-        (user.username, pwd_hash, admin_id)
-    )
+    
+    # Handle empty password case (don't update password if empty)
+    if user.password:
+        pwd_hash = hash_password(user.password)
+        cursor.execute(
+            "UPDATE Admins SET username = ?, password_hash = ?, role = ? WHERE id = ?", 
+            (user.username, pwd_hash, user.role, admin_id)
+        )
+    else:
+        # If password is empty, don't update the password
+        cursor.execute(
+            "UPDATE Admins SET username = ?, role = ? WHERE id = ?", 
+            (user.username, user.role, admin_id)
+        )
+    
     if cursor.rowcount == 0:
         conn.close()
         raise HTTPException(status_code=404, detail="Admin not found")
+    
     conn.commit()
     conn.close()
-    return {"id": admin_id, "username": user.username, "role": "admin"}
+    return {"id": admin_id, "username": user.username, "role": user.role}
 
 @app.delete("/admins/{admin_id}")
 async def delete_admin(admin_id: int, current_user: dict = Depends(get_current_admin)):
