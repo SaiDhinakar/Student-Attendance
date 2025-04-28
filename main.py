@@ -53,7 +53,7 @@ app = FastAPI(title="AI Student Attendance System")
 # CORS setup (adjust origin to match your client host)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://student-attendance-p88vpp3vg-saidhin27-gmailcoms-projects.vercel.app/"],
+    allow_origins=["http://192.168.8.86:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -498,7 +498,7 @@ async def startup_event():
 # Get current time block
 
 # Get all time blocks
-@app.get("/time-block", response_model=List[TimeBlockResponse])
+@app.get("/time-blocks", response_model=List[TimeBlockResponse])
 async def get_all_time_blocks():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -1758,4 +1758,5 @@ async def delete_admin(admin_id: int, current_user: dict = Depends(get_current_a
     return {"message": "Admin deleted successfully"}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host=SERVER_HOST, port=int(SERVER_PORT))
+    print(f"Starting server with auto-reload enabled...")
+    uvicorn.run("main:app", host=SERVER_HOST, port=int(SERVER_PORT), reload=True)

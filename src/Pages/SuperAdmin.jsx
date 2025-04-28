@@ -773,13 +773,11 @@ export default function SuperAdmin() {
                   {sections.map((section) => (
                     <tr key={section.section_id} className="border-b">
                       <td className="p-3">
-                        {section.batch_id} (
                         {batches.find((b) => b.batch_id === section.batch_id)
                           ?.dept_name || "N/A"}{" "}
                         - Year{" "}
                         {batches.find((b) => b.batch_id === section.batch_id)
                           ?.year || "N/A"}
-                        )
                       </td>
                       <td className="p-3">{section.section_name}</td>
                       <td className="p-3">
