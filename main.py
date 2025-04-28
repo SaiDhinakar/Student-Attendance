@@ -254,7 +254,7 @@ def generate_image_filename(dept_name, year, section_name, date, subject_code, t
     return f"{base_name}_{unique_id}"
 
 # Process image (using enhancements from old code)
-def process_image(image_bytes, threshold=0.5, gallery=None, save_path=None, filename_base=None, img_index=None):
+def process_image(image_bytes, threshold=0.45, gallery=None, save_path=None, filename_base=None, img_index=None, section_id=None):
     try:
         nparr = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -276,8 +276,23 @@ def process_image(image_bytes, threshold=0.5, gallery=None, save_path=None, file
         result_img = img.copy()
         detected_ids = set()
         
+        # Get student IDs for the specific section if section_id is provided
+        section_students = set()
+        if section_id is not None:
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("SELECT register_number FROM Students WHERE section_id = ?", (section_id,))
+                section_students = {row["register_number"] for row in cursor.fetchall()}
+                conn.close()
+                logger.info(f"Loaded {len(section_students)} student IDs for section {section_id}")
+            except Exception as e:
+                logger.error(f"Error loading section students: {e}")
+                # Continue with empty set if database query fails
+                pass
+        
         # Detect faces using YOLO
-        results = yolo_model(img,conf=0.6)
+        results = yolo_model(img)
         logger.info(f"YOLO detected {len(results[0].boxes)} faces")
 
         # Step 1: Get all faces and their embeddings
@@ -311,6 +326,10 @@ def process_image(image_bytes, threshold=0.5, gallery=None, save_path=None, file
                 # Store all potential matches for this face
                 matches = []
                 for identity, gallery_embedding in gallery.items():
+                    # Only consider matches for students in this section if section_id is provided
+                    if section_id is not None and section_students and identity not in section_students:
+                        continue
+                        
                     similarity = 1 - cosine(face_embedding, gallery_embedding)
                     if similarity > threshold:
                         matches.append((identity, similarity))
@@ -810,7 +829,7 @@ async def process_images(
         filename_base = generate_image_filename(dept_name, year, section_name, date, subject_code, f"{start_time}-{end_time}")
         for img_index, image in enumerate(images):
             contents = await image.read()
-            img_base64, detected_ids = process_image(contents, threshold, gallery, save_path, filename_base, img_index)
+            img_base64, detected_ids = process_image(contents, threshold, gallery, save_path, filename_base, img_index, section_id)
             images_base64.append(img_base64)
             detected_students.update(detected_ids)
             
