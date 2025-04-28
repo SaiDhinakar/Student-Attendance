@@ -530,11 +530,11 @@ export default function SuperAdmin() {
   return (
     <>
       <Header />
-      <div className="min-h-[calc(100vh-28px)] bg-gray-100 p-6 mt-[26px]">
-        <h1 className="text-3xl font-semibold text-gray-800 mb-6">
+      <div className="min-h-[calc(100vh-28px)] bg-gray-100 p-3 md:p-6 mt-[100px]">
+        <h1 className="text-2xl md:text-3xl font-semibold text-gray-800 mb-4 md:mb-6    ">
           Super Admin Panel
         </h1>
-
+        
         {/* Loading and Error States */}
         {loading && (
           <div className="text-center mb-4">
@@ -567,16 +567,16 @@ export default function SuperAdmin() {
         )}
 
         {/* Tabs */}
-        <div className="flex gap-4 mb-6 border-b border-gray-200">
+        <div className="flex flex-wrap gap-2 md:gap-4 mb-6 border-b border-gray-200 overflow-x-auto pb-1">
           {tabs.map((tab) => (
             <button
               type="button"
               key={tab}
               onClick={(e) => {
-                e.preventDefault(); // Add this to prevent default behavior
+                e.preventDefault();
                 setActiveTab(tab);
               }}
-              className={`px-4 py-2 font-medium ${
+              className={`px-3 md:px-4 py-2 font-medium text-sm md:text-base whitespace-nowrap ${
                 activeTab === tab
                   ? "border-b-2 border-blue-600 text-blue-600"
                   : "text-gray-600 hover:text-blue-600"
@@ -588,7 +588,7 @@ export default function SuperAdmin() {
         </div>
 
         {/* Tab Content */}
-        <div className="bg-white p-6 rounded-lg shadow-lg max-w-4xl mx-auto">
+        <div className="bg-white p-3 md:p-6 rounded-lg shadow-lg mx-auto">
           {activeTab === "departments" && (
             <>
               <form
@@ -620,46 +620,48 @@ export default function SuperAdmin() {
                   </button>
                 </div>
               </form>
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-gray-200">
-                    <th className="p-3 text-left text-gray-700">Name</th>
-                    <th className="p-3 text-left text-gray-700">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {departments.map((dept) => (
-                    <tr key={dept.dept_name} className="border-b">
-                      <td className="p-3">{dept.dept_name}</td>
-                      <td className="p-3">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleEdit("departments", {
-                              ...dept,
-                              old_name: dept.dept_name,
-                            })
-                          }
-                          className="px-3 py-1 bg-yellow-500 text-white rounded mr-2 hover:bg-yellow-600 disabled:bg-gray-400"
-                          disabled={loading}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) =>
-                            handleDelete("departments", dept.dept_name, e)
-                          }
-                          className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:bg-gray-400"
-                          disabled={loading}
-                        >
-                          Delete
-                        </button>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-gray-200">
+                      <th className="p-3 text-left text-gray-700">Name</th>
+                      <th className="p-3 text-left text-gray-700">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {departments.map((dept) => (
+                      <tr key={dept.dept_name} className="border-b">
+                        <td className="p-3">{dept.dept_name}</td>
+                        <td className="p-3">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleEdit("departments", {
+                                ...dept,
+                                old_name: dept.dept_name,
+                              })
+                            }
+                            className="px-3 py-1 bg-yellow-500 text-white rounded mr-2 hover:bg-yellow-600 disabled:bg-gray-400"
+                            disabled={loading}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) =>
+                              handleDelete("departments", dept.dept_name, e)
+                            }
+                            className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:bg-gray-400"
+                            disabled={loading}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
 
@@ -718,43 +720,45 @@ export default function SuperAdmin() {
                   </button>
                 </div>
               </form>
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-gray-200">
-                    <th className="p-3 text-left text-gray-700">Department</th>
-                    <th className="p-3 text-left text-gray-700">Year</th>
-                    <th className="p-3 text-left text-gray-700">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {batches.map((batch) => (
-                    <tr key={batch.batch_id} className="border-b">
-                      <td className="p-3">{batch.dept_name}</td>
-                      <td className="p-3">{batch.year}</td>
-                      <td className="p-3">
-                        <button
-                          type="button"
-                          onClick={() => handleEdit("batches", batch)}
-                          className="px-3 py-1 bg-yellow-500 text-white rounded mr-2 hover:bg-yellow-600 disabled:bg-gray-400"
-                          disabled={loading}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) =>
-                            handleDelete("batches", batch.batch_id, e)
-                          }
-                          className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:bg-gray-400"
-                          disabled={loading}
-                        >
-                          Delete
-                        </button>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-gray-200">
+                      <th className="p-3 text-left text-gray-700">Department</th>
+                      <th className="p-3 text-left text-gray-700">Year</th>
+                      <th className="p-3 text-left text-gray-700">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {batches.map((batch) => (
+                      <tr key={batch.batch_id} className="border-b">
+                        <td className="p-3">{batch.dept_name}</td>
+                        <td className="p-3">{batch.year}</td>
+                        <td className="p-3">
+                          <button
+                            type="button"
+                            onClick={() => handleEdit("batches", batch)}
+                            className="px-3 py-1 bg-yellow-500 text-white rounded mr-2 hover:bg-yellow-600 disabled:bg-gray-400"
+                            disabled={loading}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) =>
+                              handleDelete("batches", batch.batch_id, e)
+                            }
+                            className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:bg-gray-400"
+                            disabled={loading}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
 
@@ -811,49 +815,51 @@ export default function SuperAdmin() {
                   </button>
                 </div>
               </form>
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-gray-200">
-                    <th className="p-3 text-left text-gray-700">Batch</th>
-                    <th className="p-3 text-left text-gray-700">Section</th>
-                    <th className="p-3 text-left text-gray-700">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sections.map((section) => (
-                    <tr key={section.section_id} className="border-b">
-                      <td className="p-3">
-                        {batches.find((b) => b.batch_id === section.batch_id)
-                          ?.dept_name || "N/A"}{" "}
-                        - Year{" "}
-                        {batches.find((b) => b.batch_id === section.batch_id)
-                          ?.year || "N/A"}
-                      </td>
-                      <td className="p-3">{section.section_name}</td>
-                      <td className="p-3">
-                        <button
-                          type="button"
-                          onClick={() => handleEdit("sections", section)}
-                          className="px-3 py-1 bg-yellow-500 text-white rounded mr-2 hover:bg-yellow-600 disabled:bg-gray-400"
-                          disabled={loading}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) =>
-                            handleDelete("sections", section.section_id, e)
-                          }
-                          className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:bg-gray-400"
-                          disabled={loading}
-                        >
-                          Delete
-                        </button>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-gray-200">
+                      <th className="p-3 text-left text-gray-700">Batch</th>
+                      <th className="p-3 text-left text-gray-700">Section</th>
+                      <th className="p-3 text-left text-gray-700">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {sections.map((section) => (
+                      <tr key={section.section_id} className="border-b">
+                        <td className="p-3">
+                          {batches.find((b) => b.batch_id === section.batch_id)
+                            ?.dept_name || "N/A"}{" "}
+                          - Year{" "}
+                          {batches.find((b) => b.batch_id === section.batch_id)
+                            ?.year || "N/A"}
+                        </td>
+                        <td className="p-3">{section.section_name}</td>
+                        <td className="p-3">
+                          <button
+                            type="button"
+                            onClick={() => handleEdit("sections", section)}
+                            className="px-3 py-1 bg-yellow-500 text-white rounded mr-2 hover:bg-yellow-600 disabled:bg-gray-400"
+                            disabled={loading}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) =>
+                              handleDelete("sections", section.section_id, e)
+                            }
+                            className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:bg-gray-400"
+                            disabled={loading}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
 
@@ -940,52 +946,54 @@ export default function SuperAdmin() {
                   </button>
                 </div>
               </form>
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-gray-200">
-                    <th className="p-3 text-left text-gray-700">Code</th>
-                    <th className="p-3 text-left text-gray-700">Name</th>
-                    <th className="p-3 text-left text-gray-700">Department</th>
-                    <th className="p-3 text-left text-gray-700">Year</th>
-                    <th className="p-3 text-left text-gray-700">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {subjects.map((subject) => (
-                    <tr key={subject.subject_code} className="border-b">
-                      <td className="p-3">{subject.subject_code}</td>
-                      <td className="p-3">{subject.subject_name}</td>
-                      <td className="p-3">{subject.dept_name}</td>
-                      <td className="p-3">{subject.year}</td>
-                      <td className="p-3">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            handleEdit("subjects", {
-                              ...subject,
-                              old_code: subject.subject_code,
-                            })
-                          }
-                          className="px-3 py-1 bg-yellow-500 text-white rounded mr-2 hover:bg-yellow-600 disabled:bg-gray-400"
-                          disabled={loading}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) =>
-                            handleDelete("subjects", subject.subject_code, e)
-                          }
-                          className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:bg-gray-400"
-                          disabled={loading}
-                        >
-                          Delete
-                        </button>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-gray-200">
+                      <th className="p-3 text-left text-gray-700">Code</th>
+                      <th className="p-3 text-left text-gray-700">Name</th>
+                      <th className="p-3 text-left text-gray-700">Department</th>
+                      <th className="p-3 text-left text-gray-700">Year</th>
+                      <th className="p-3 text-left text-gray-700">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {subjects.map((subject) => (
+                      <tr key={subject.subject_code} className="border-b">
+                        <td className="p-3">{subject.subject_code}</td>
+                        <td className="p-3">{subject.subject_name}</td>
+                        <td className="p-3">{subject.dept_name}</td>
+                        <td className="p-3">{subject.year}</td>
+                        <td className="p-3">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleEdit("subjects", {
+                                ...subject,
+                                old_code: subject.subject_code,
+                              })
+                            }
+                            className="px-3 py-1 bg-yellow-500 text-white rounded mr-2 hover:bg-yellow-600 disabled:bg-gray-400"
+                            disabled={loading}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) =>
+                              handleDelete("subjects", subject.subject_code, e)
+                            }
+                            className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:bg-gray-400"
+                            disabled={loading}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
 
@@ -1279,12 +1287,9 @@ export default function SuperAdmin() {
                 <h2 className="text-xl font-semibold text-gray-700 mb-4">
                   Admin Roles
                 </h2>
-                <form
-                  onSubmit={(e) => handleAddAdmin(e)}
-                  className="mb-6"
-                >
-                  <div className="flex gap-4 items-end">
-                    <div className="flex-1">
+                <form onSubmit={handleAddAdmin} className="mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div className="mb-4">
                       <label className="block text-gray-700 font-medium mb-2">
                         Username
                       </label>
@@ -1297,7 +1302,7 @@ export default function SuperAdmin() {
                         disabled={loading}
                       />
                     </div>
-                    <div className="flex-1">
+                    <div className="mb-4">
                       <label className="block text-gray-700 font-medium mb-2">
                         Role
                       </label>
@@ -1313,7 +1318,7 @@ export default function SuperAdmin() {
                         <option value="superadmin">Superadmin</option>
                       </select>
                     </div>
-                    <div className="flex-1">
+                    <div className="mb-4">
                       <label className="block text-gray-700 font-medium mb-2">
                         Password
                       </label>
@@ -1326,51 +1331,53 @@ export default function SuperAdmin() {
                         disabled={loading}
                       />
                     </div>
-                    <button
-                      type="submit"
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
-                      disabled={loading}
-                    >
-                      Add Admin
-                    </button>
                   </div>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 mt-2"
+                    disabled={loading}
+                  >
+                    Add Admin
+                  </button>
                 </form>
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="bg-gray-200">
-                      <th className="p-3 text-left text-gray-700">Username</th>
-                      <th className="p-3 text-left text-gray-700">Role</th>
-                      <th className="p-3 text-left text-gray-700">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {admins.map((admin) => (
-                      <tr key={admin.id} className="border-b">
-                        <td className="p-3">{admin.username}</td>
-                        <td className="p-3">{admin.role}</td>
-                        <td className="p-3">
-                          <button
-                            onClick={() => handleEdit("admins", {
-                              ...admin,
-                              password: ""  // Reset password field in edit modal
-                            })}
-                            className="px-3 py-1 bg-yellow-500 text-white rounded mr-2 hover:bg-yellow-600"
-                            disabled={loading}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={(e) => handleDelete("admins", admin.id, e)}
-                            className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                            disabled={loading}
-                          >
-                            Delete
-                          </button>
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-gray-200">
+                        <th className="p-3 text-left text-gray-700">Username</th>
+                        <th className="p-3 text-left text-gray-700">Role</th>
+                        <th className="p-3 text-left text-gray-700">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {admins.map((admin) => (
+                        <tr key={admin.id} className="border-b">
+                          <td className="p-3">{admin.username}</td>
+                          <td className="p-3">{admin.role}</td>
+                          <td className="p-3">
+                            <button
+                              onClick={() => handleEdit("admins", {
+                                ...admin,
+                                password: ""  // Reset password field in edit modal
+                              })}
+                              className="px-3 py-1 bg-yellow-500 text-white rounded mr-2 hover:bg-yellow-600"
+                              disabled={loading}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={(e) => handleDelete("admins", admin.id, e)}
+                              className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                              disabled={loading}
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </>
           )}
@@ -1456,55 +1463,57 @@ export default function SuperAdmin() {
               </form>
 
               {/* Time Blocks Table */}
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-gray-200">
-                    <th className="p-3 text-left text-gray-700">Year</th>
-                    <th className="p-3 text-left text-gray-700">Period</th>
-                    <th className="p-3 text-left text-gray-700">Start Time</th>
-                    <th className="p-3 text-left text-gray-700">End Time</th>
-                    <th className="p-3 text-left text-gray-700">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredTimeBlocks.map((block) => (
-                    <tr key={block.time_block_id} className="border-b">
-                      <td className="p-3">{block.batch_year}</td>
-                      <td className="p-3">{block.block_number}</td>
-                      <td className="p-3">{block.start_time}</td>
-                      <td className="p-3">{block.end_time}</td>
-                      <td className="p-3">
-                        <button
-                          type="button"
-                          onClick={() => handleEdit("time-blocks", block)}
-                          className="px-3 py-1 bg-yellow-500 text-white rounded mr-2 hover:bg-yellow-600 disabled:bg-gray-400"
-                          disabled={loading}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) =>
-                            handleDeleteTimeBlock(block.time_block_id, e)
-                          }
-                          className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:bg-gray-400"
-                          disabled={loading}
-                        >
-                          Delete
-                        </button>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-gray-200">
+                      <th className="p-3 text-left text-gray-700">Year</th>
+                      <th className="p-3 text-left text-gray-700">Period</th>
+                      <th className="p-3 text-left text-gray-700">Start Time</th>
+                      <th className="p-3 text-left text-gray-700">End Time</th>
+                      <th className="p-3 text-left text-gray-700">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredTimeBlocks.map((block) => (
+                      <tr key={block.time_block_id} className="border-b">
+                        <td className="p-3">{block.batch_year}</td>
+                        <td className="p-3">{block.block_number}</td>
+                        <td className="p-3">{block.start_time}</td>
+                        <td className="p-3">{block.end_time}</td>
+                        <td className="p-3">
+                          <button
+                            type="button"
+                            onClick={() => handleEdit("time-blocks", block)}
+                            className="px-3 py-1 bg-yellow-500 text-white rounded mr-2 hover:bg-yellow-600 disabled:bg-gray-400"
+                            disabled={loading}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) =>
+                              handleDeleteTimeBlock(block.time_block_id, e)
+                            }
+                            className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:bg-gray-400"
+                            disabled={loading}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </>
           )}
         </div>
 
         {/* Edit Modal */}
         {editModal.isOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50">
-            <div className="bg-white p-6 rounded-lg">
+          <div className="fixed inset-0 bg-none bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
               <h2 className="text-xl font-semibold mb-4">
                 Edit {editModal.type.slice(0, -1)}
               </h2>
@@ -1825,7 +1834,7 @@ export default function SuperAdmin() {
                             },
                           })
                         }
-                        className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="w"
                         required
                         disabled={loading}
                       >
@@ -1963,7 +1972,7 @@ export default function SuperAdmin() {
                     </div>
                   </>
                 )}
-                <div className="flex gap-4">
+                <div className="flex flex-wrap gap-4 mt-6">
                   <button
                     type="submit"
                     className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400"
@@ -1987,6 +1996,7 @@ export default function SuperAdmin() {
             </div>
           )}
         </div>
+      {/* </div> */}
       <Footer />
     </>
   );

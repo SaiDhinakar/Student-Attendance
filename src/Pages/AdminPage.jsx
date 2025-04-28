@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Filter, ChevronDown, ChevronUp, ChevronRight, Calendar } from "lucide-react";
+import { Filter, ChevronDown, ChevronUp, ChevronRight, Calendar, FileText, Download } from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import api from "../api/axiosInstance";
 import { useNavigate } from "react-router-dom";
+import * as XLSX from "xlsx";
+
 export default function AdminPage() {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
@@ -338,6 +340,7 @@ export default function AdminPage() {
           Object.entries(dates).forEach(([date, subjects]) => {
             const dateId = `${sectionId}-${date}`;
             const isDateExpanded = expandedGroups[dateId];
+            const formattedDate = formatDate(date);
 
             rows.push(
               <tr key={dateId} className="bg-gray-100">
@@ -351,81 +354,128 @@ export default function AdminPage() {
                     ) : (
                       <ChevronRight size={18} className="mr-2 transition-transform duration-200" />
                     )}
-                    <span className="text-sm">Date: {formatDate(date)}</span>
+                    <span className="text-sm">Date: {formattedDate}</span>
                   </button>
                 </td>
               </tr>
             );
 
             if (!isDateExpanded) return;
-
+            
+            // New date-centric display with subjects as columns
+            // Gather all subjects for this date
+            const allSubjects = Object.keys(subjects).sort();
+            
+            // Generate the table header row with subjects
+            rows.push(
+              <tr key={`${dateId}-header`} className="bg-indigo-50">
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Register Number</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Name</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Department</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Year</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Section</th>
+                {allSubjects.map(subject => (
+                  <React.Fragment key={`${dateId}-header-${subject}`}>
+                    <th className="px-2 py-2 text-center text-xs font-semibold text-gray-700">
+                      {subject}
+                    </th>
+                    <th className="px-2 py-2 text-center text-xs font-semibold text-gray-700 border-r border-gray-200">
+                      Time
+                    </th>
+                  </React.Fragment>
+                ))}
+              </tr>
+            );
+            
+            // Collect all unique students for this date across all subjects
+            const studentsMap = {};
+            
             Object.entries(subjects).forEach(([subject, { students }]) => {
-              const subjectId = `${dateId}-${subject}`;
-              const isSubjectExpanded = expandedGroups[subjectId];
-
-              rows.push(
-                <tr key={subjectId} className="bg-white border-t border-gray-200">
-                  <td colSpan={6} className="px-12 py-3">
-                    <button
-                      onClick={() => toggleGroup(subjectId)}
-                      className="flex items-center hover:text-blue-600 transition-colors duration-200 w-full text-left"
-                    >
-                      {isSubjectExpanded ? (
-                        <ChevronDown size={18} className="mr-2 transition-transform duration-200" />
-                      ) : (
-                        <ChevronRight size={18} className="mr-2 transition-transform duration-200" />
-                      )}
-                      <span className="text-sm">Period: {subject}</span>
-                    </button>
-                  </td>
-                </tr>
-              );
-
-              if (!isSubjectExpanded) return;
-
-              students.forEach((student, idx) => {
-                rows.push(
-                  <tr
-                    key={`${subjectId}-${student.register_number}`}
-                    className={`${
-                      idx % 2 ? "bg-gray-50" : "bg-white"
-                    } hover:bg-blue-50 transition-colors duration-150`}
-                  >
-                    <td className="px-14 py-3 text-sm text-gray-800">{student.register_number}</td>
-                    <td className="px-4 py-3 text-sm text-gray-800">{student.name}</td>
-                    <td className="px-4 py-3 text-sm text-center">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          student.is_present ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {student.is_present ? "Present" : "Absent"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 text-center">{student.timestamp || "-"}</td>
-                    <td className="px-4 py-3 text-sm text-gray-600"></td>
-                    <td className="px-4 py-3 text-sm text-gray-600"></td>
-                  </tr>
-                );
+              students.forEach(student => {
+                const key = student.register_number;
+                if (!studentsMap[key]) {
+                  studentsMap[key] = {
+                    register_number: student.register_number,
+                    name: student.name,
+                    subjects: {}
+                  };
+                }
+                
+                // Store attendance for this subject
+                studentsMap[key].subjects[subject] = {
+                  is_present: student.is_present,
+                  time: student.timestamp || "-"
+                };
               });
-
-              const presentCount = students.filter((s) => s.is_present).length;
-              const totalCount = students.length;
+            });
+            
+            // Sort students by register number
+            const sortedStudents = Object.values(studentsMap).sort((a, b) => 
+              a.register_number.localeCompare(b.register_number)
+            );
+            
+            // Generate rows for each student with attendance for each subject
+            sortedStudents.forEach((student, idx) => {
               rows.push(
-                <tr
-                  key={`${subjectId}-summary`}
-                  className="bg-gray-200 font-medium text-gray-700 border-t border-gray-200"
+                <tr 
+                  key={`${dateId}-student-${student.register_number}`} 
+                  className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}
                 >
-                  <td colSpan={2} className="px-14 py-2 text-sm">
-                    Summary
-                  </td>
-                  <td className="px-4 py-2 text-sm text-center">
-                    Present: {presentCount} / Absent: {totalCount - presentCount}
-                  </td>
-                  <td colSpan={3} className="px-4 py-2 text-sm"></td>
+                  <td className="px-4 py-2 text-sm text-gray-800">{student.register_number}</td>
+                  <td className="px-4 py-2 text-sm text-gray-800">{student.name}</td>
+                  <td className="px-4 py-2 text-sm text-gray-800">{dept}</td>
+                  <td className="px-4 py-2 text-sm text-gray-800">{year}</td>
+                  <td className="px-4 py-2 text-sm text-gray-800">{section}</td>
+                  
+                  {/* For each subject, show attendance status and time */}
+                  {allSubjects.map(subject => {
+                    const attendance = student.subjects[subject];
+                    return (
+                      <React.Fragment key={`${dateId}-student-${student.register_number}-${subject}`}>
+                        <td className="px-2 py-2 text-sm text-center">
+                          {attendance ? (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              attendance.is_present ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                            }`}>
+                              {attendance.is_present ? "Present" : "Absent"}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">N/A</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2 text-sm text-center text-gray-600 border-r border-gray-200">
+                          {attendance ? attendance.time : "-"}
+                        </td>
+                      </React.Fragment>
+                    );
+                  })}
                 </tr>
               );
             });
+            
+            // Add a summary row for this date
+            rows.push(
+              <tr key={`${dateId}-summary`} className="bg-gray-200 font-medium text-gray-700 border-t border-gray-200">
+                <td colSpan={5} className="px-4 py-2 text-sm">
+                  Summary for {formattedDate}
+                </td>
+                
+                {allSubjects.map(subject => {
+                  const subjectStudents = subjects[subject]?.students || [];
+                  const presentCount = subjectStudents.filter(s => s.is_present).length;
+                  const totalCount = subjectStudents.length;
+                  const percentage = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
+                  
+                  return (
+                    <React.Fragment key={`${dateId}-summary-${subject}`}>
+                      <td colSpan={2} className="px-2 py-2 text-xs text-center border-r border-gray-300">
+                        Present: {presentCount}/{totalCount} ({percentage}%)
+                      </td>
+                    </React.Fragment>
+                  );
+                })}
+              </tr>
+            );
           });
         });
       });
@@ -433,6 +483,272 @@ export default function AdminPage() {
 
     return rows;
   }, [groupedData, expandedGroups]);
+
+  // Function to export data as CSV
+  const exportToCSV = () => {
+    if (Object.keys(groupedData).length === 0) {
+      setError("No data to export");
+      return;
+    }
+    
+    try {
+      // Create CSV header
+      let csvContent = "Department,Year,Section,Date,Subject,Register Number,Name,Status,Time\n";
+      
+      // Flatten the hierarchical data structure for CSV
+      Object.entries(groupedData).forEach(([dept, years]) => {
+        Object.entries(years).forEach(([year, sections]) => {
+          Object.entries(sections).forEach(([section, dates]) => {
+            Object.entries(dates).forEach(([date, subjects]) => {
+              const formattedDate = formatDate(date);
+              Object.entries(subjects).forEach(([subject, { students }]) => {
+                students.forEach((student) => {
+                  // Format each row of data
+                  const row = [
+                    dept,
+                    year,
+                    section,
+                    formattedDate,
+                    subject,
+                    student.register_number,
+                    student.name,
+                    student.is_present ? "Present" : "Absent",
+                    student.timestamp || "-"
+                  ].map(item => `"${String(item).replace(/"/g, '""')}"`).join(",");
+                  
+                  csvContent += row + "\n";
+                });
+              });
+            });
+          });
+        });
+      });
+      
+      // Create and download the CSV file
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      
+      // Create filename with date for uniqueness
+      const currentDate = new Date().toISOString().split('T')[0];
+      let filename = `attendance_${currentDate}`;
+      if (filters.dept_name) filename += `_${filters.dept_name}`;
+      if (filters.year) filename += `_Year${filters.year}`;
+      if (filters.section_name) filename += `_${filters.section_name}`;
+      if (filters.subject_code) filename += `_${filters.subject_code}`;
+      if (filters.date) filename += `_${filters.date.toISOString().split('T')[0]}`;
+      
+      link.download = `${filename}.csv`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (error) {
+      console.error("Error exporting CSV:", error);
+      setError("Failed to export CSV file");
+    }
+  };
+
+  // Function to export data as XLSX with each date on a separate sheet
+  const exportToXLSX = () => {
+    if (Object.keys(groupedData).length === 0) {
+      setError("No data to export");
+      return;
+    }
+    
+    try {
+      // Create a new workbook
+      const workbook = XLSX.utils.book_new();
+      
+      // Process data by dates for separate sheets
+      const dateSheets = {};
+      
+      // Collect data for each date
+      Object.entries(groupedData).forEach(([dept, years]) => {
+        Object.entries(years).forEach(([year, sections]) => {
+          Object.entries(sections).forEach(([section, dates]) => {
+            Object.entries(dates).forEach(([date, subjects]) => {
+              // Format the date for the sheet name
+              const dateObj = new Date(date);
+              const formattedDate = dateObj.toLocaleDateString("en-US", {
+                month: "2-digit",
+                day: "2-digit",
+                year: "numeric",
+              }).replace(/\//g, "-");
+              
+              // Initialize the date sheet if it doesn't exist
+              if (!dateSheets[formattedDate]) {
+                // Start with summary information
+                dateSheets[formattedDate] = [
+                  ["Attendance Report - " + formattedDate],
+                  ["Department: " + dept, "Year: " + year, "Section: " + section],
+                  [], // Empty row for spacing
+                  // Header row
+                  ["Register Number", "Name", "Department", "Year", "Section"]
+                ];
+                
+                // Add each subject as additional columns in the header row
+                const allSubjects = Object.keys(subjects).sort();
+                allSubjects.forEach(subject => {
+                  dateSheets[formattedDate][3].push(subject);
+                });
+              }
+              
+              // Create a map of students to make it easier to organize data
+              const studentsMap = {};
+              
+              // Process all students for this date
+              Object.entries(subjects).forEach(([subject, { students }]) => {
+                students.forEach(student => {
+                  const regNum = student.register_number;
+                  
+                  if (!studentsMap[regNum]) {
+                    studentsMap[regNum] = {
+                      register_number: regNum,
+                      name: student.name,
+                      department: dept,
+                      year: year,
+                      section: section,
+                      attendance: {}
+                    };
+                  }
+                  
+                  // Record attendance for this subject
+                  studentsMap[regNum].attendance[subject] = student.is_present ? "Present" : "Absent";
+                });
+              });
+              
+              // Get all subjects for this date to ensure we have complete rows
+              const allSubjects = Object.keys(subjects).sort();
+              
+              // Sort students by register number
+              const sortedStudents = Object.values(studentsMap).sort((a, b) => 
+                a.register_number.localeCompare(b.register_number)
+              );
+              
+              // Add each student as a row
+              sortedStudents.forEach(student => {
+                const row = [
+                  student.register_number,
+                  student.name,
+                  student.department,
+                  student.year,
+                  student.section
+                ];
+                
+                // Add attendance status for each subject
+                allSubjects.forEach(subject => {
+                  row.push(student.attendance[subject] || "N/A");
+                });
+                
+                dateSheets[formattedDate].push(row);
+              });
+              
+              // Add summary information at the bottom
+              const summaryRow = ["SUMMARY", "", "", "", ""];
+              allSubjects.forEach(subject => {
+                const subjectStudents = subjects[subject]?.students || [];
+                const presentCount = subjectStudents.filter(s => s.is_present).length;
+                const totalCount = subjectStudents.length;
+                const percentage = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
+                
+                summaryRow.push(`${presentCount}/${totalCount} (${percentage}%)`);
+              });
+              
+              dateSheets[formattedDate].push([]);  // Empty row for spacing
+              dateSheets[formattedDate].push(summaryRow);
+            });
+          });
+        });
+      });
+      
+      // Create a worksheet for each date and add it to the workbook
+      Object.entries(dateSheets).forEach(([dateStr, rows]) => {
+        const worksheet = XLSX.utils.aoa_to_sheet(rows);
+        
+        // Apply styling to the worksheet
+        
+        // Set column widths
+        const columnWidths = [
+          { wch: 15 }, // Register Number
+          { wch: 25 }, // Name
+          { wch: 15 }, // Department
+          { wch: 8 },  // Year
+          { wch: 10 }, // Section
+        ];
+        
+        // Add column widths for each subject column
+        const subjectCount = rows[3].length - 5;  // Count the subject columns
+        for (let i = 0; i < subjectCount; i++) {
+          columnWidths.push({ wch: 12 }); // Each subject column
+        }
+        
+        worksheet['!cols'] = columnWidths;
+        
+        // Apply styles to the header row and title
+        const titleCell = XLSX.utils.encode_cell({ r: 0, c: 0 });
+        if (worksheet[titleCell]) {
+          worksheet[titleCell].s = {
+            font: { bold: true, sz: 14, color: { rgb: "000000" } }
+          };
+        }
+        
+        // Style the summary info row
+        const infoRowCells = ["A2", "B2", "C2"];
+        infoRowCells.forEach(cell => {
+          if (worksheet[cell]) {
+            worksheet[cell].s = {
+              font: { bold: true, color: { rgb: "000000" } }
+            };
+          }
+        });
+        
+        // Style the headers
+        const headerRange = { s: { r: 3, c: 0 }, e: { r: 3, c: rows[3].length - 1 } };
+        for (let C = headerRange.s.c; C <= headerRange.e.c; ++C) {
+          const headerCell = XLSX.utils.encode_cell({ r: 3, c: C });
+          if (worksheet[headerCell]) {
+            worksheet[headerCell].s = {
+              fill: { fgColor: { rgb: "4682B4" } },
+              font: { color: { rgb: "FFFFFF" }, bold: true },
+              alignment: { horizontal: "center" }
+            };
+          }
+        }
+        
+        // Style the summary row
+        const lastRowIndex = rows.length - 1;
+        for (let C = 0; C <= rows[lastRowIndex].length - 1; ++C) {
+          const summaryCell = XLSX.utils.encode_cell({ r: lastRowIndex, c: C });
+          if (worksheet[summaryCell]) {
+            worksheet[summaryCell].s = {
+              font: { bold: true },
+              fill: { fgColor: { rgb: "EEEEEE" } }
+            };
+          }
+        }
+        
+        // Add auto-filter for the data rows
+        worksheet['!autofilter'] = { ref: XLSX.utils.encode_range({ r: 3, c: 0 }, { r: lastRowIndex - 2, c: rows[3].length - 1 }) };
+        
+        // Add the worksheet to the workbook with a sheet name based on the date
+        XLSX.utils.book_append_sheet(workbook, worksheet, `Date ${dateStr}`);
+      });
+      
+      // Create filename with date for uniqueness
+      const currentDate = new Date().toISOString().split('T')[0];
+      let filename = `attendance_report_${currentDate}`;
+      if (filters.dept_name) filename += `_${filters.dept_name}`;
+      if (filters.year) filename += `_Year${filters.year}`;
+      if (filters.section_name) filename += `_${filters.section_name}`;
+      if (filters.subject_code) filename += `_${filters.subject_code}`;
+      
+      // Write the workbook and trigger download
+      XLSX.writeFile(workbook, `${filename}.xlsx`);
+      
+    } catch (error) {
+      console.error("Error exporting XLSX:", error);
+      setError("Failed to export XLSX file");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -442,13 +758,28 @@ export default function AdminPage() {
         <div className="bg-white rounded-xl shadow-lg p-4 md:p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold text-gray-800">Attendance Records</h2>
-            <button
-              onClick={() => setIsFilterVisible(!isFilterVisible)}
-              className="flex items-center text-blue-600 hover:text-blue-800 transition"
-            >
-              <Filter size={18} className="mr-1" />
-              {isFilterVisible ? "Hide Filters" : "Show Filters"}
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Export buttons - only show when we have data */}
+              {Object.keys(groupedData).length > 0 && (
+                <div className="flex gap-2 mr-4">
+                  <button
+                    onClick={exportToXLSX}
+                    className="flex items-center px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                    title="Export to XLSX"
+                  >
+                    <FileText size={16} className="mr-1" />
+                    XLSX
+                  </button>
+                </div>
+              )}
+              <button
+                onClick={() => setIsFilterVisible(!isFilterVisible)}
+                className="flex items-center text-blue-600 hover:text-blue-800 transition"
+              >
+                <Filter size={18} className="mr-1" />
+                {isFilterVisible ? "Hide Filters" : "Show Filters"}
+              </button>
+            </div>
           </div>
 
           {isFilterVisible && (

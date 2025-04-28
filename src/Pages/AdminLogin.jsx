@@ -10,6 +10,29 @@ const AdminLogin = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
 
+  // Function to decode JWT token
+  const decodeJWT = (token) => {
+    try {
+      // Split the token into parts
+      const parts = token.split('.');
+      if (parts.length !== 3) {
+        console.error("Invalid token format");
+        return null;
+      }
+      
+      // Base64 decode and parse the payload (second part)
+      // Need to handle base64url format by replacing '-' with '+' and '_' with '/'
+      const base64Url = parts[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const payload = JSON.parse(atob(base64));
+      
+      return payload;
+    } catch (error) {
+      console.error("Error decoding JWT:", error);
+      return null;
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -18,13 +41,41 @@ const AdminLogin = () => {
         username: userName,
         password,
       });
-      const { access_token, role } = response.data;
+      
+      console.log("Login response:", response.data);
+      
+      const { access_token } = response.data;
+      
+      if (!access_token) {
+        setError("Authentication failed: No token received");
+        return;
+      }
+      
+      // Decode the token to get the role
+      const decodedToken = decodeJWT(access_token);
+      console.log("Decoded token:", decodedToken);
+      
+      if (!decodedToken || !decodedToken.role) {
+        setError("Authentication error: Could not determine user role");
+        return;
+      }
+      
+      const role = decodedToken.role;
       const expiry = Date.now() + 24 * 60 * 60 * 1000; // 1 day
+      
+      // Store in localStorage
       localStorage.setItem("token", access_token);
       localStorage.setItem("tokenExpiry", expiry.toString());
       localStorage.setItem("role", role);
-      if (role === "superadmin") navigate("/superadmin");
-      else navigate("/report");
+      
+      console.log("Role stored:", role);
+      
+      // Navigate based on role
+      if (role === "superadmin") {
+        navigate("/superadmin");
+      } else {
+        navigate("/report");
+      }
     } catch (err) {
       console.error("Login error:", err);
       setError(err.response?.data?.detail || "Login failed");
