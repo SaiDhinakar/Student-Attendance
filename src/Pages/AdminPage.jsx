@@ -382,10 +382,11 @@ export default function AdminPage() {
             );
 
             if (!isDateExpanded) return;
-            
+
+            // New date-centric display with subjects as columns
             // Gather all subjects for this date
             const allSubjects = Object.keys(subjects).sort();
-            
+
             // Generate the table header row with subjects
             rows.push(
               <tr key={`${dateId}-header`} className="bg-indigo-50">
@@ -410,7 +411,7 @@ export default function AdminPage() {
             );
             // Collect all unique students for this date across all subjects
             const studentsMap = {};
-            
+
             Object.entries(subjects).forEach(([subject, { students }]) => {
               students.forEach(student => {
                 const key = student.register_number;
@@ -421,7 +422,7 @@ export default function AdminPage() {
                     subjects: {}
                   };
                 }
-                
+
                 // Store attendance for this subject
                 studentsMap[key].subjects[subject] = {
                   is_present: student.is_present,
@@ -429,12 +430,12 @@ export default function AdminPage() {
                 };
               });
             });
-            
+
             // Sort students by register number
             const sortedStudents = Object.values(studentsMap).sort((a, b) => 
               a.register_number.localeCompare(b.register_number)
             );
-            
+
             // Generate rows for each student with attendance for each subject
             sortedStudents.forEach((student, idx) => {
               const rowId = `${dateId}-student-${student.register_number}`;
@@ -507,7 +508,7 @@ export default function AdminPage() {
                 </tr>
               );
             });
-            
+
             // Add a summary row for this date
             rows.push(
               <tr key={`${dateId}-summary`} className="bg-gray-200 font-medium text-gray-700 border-t border-gray-200">

@@ -8,12 +8,13 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "serve": "vite preview --host 0.0.0.0 --port 3000"
+    "serve": "vite preview --host 0.0.0.0 --port $PORT"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "@tailwindcss/vite": "^4.1.3",
     "axios": "^1.8.4",
+    "dotenv": "^16.5.0",
     "file-saver": "^2.0.5",
     "jspdf": "^3.0.1",
     "jspdf-autotable": "^5.0.2",

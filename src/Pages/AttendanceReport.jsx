@@ -615,7 +615,12 @@ export default function AttendanceReport() {
                                 <th className="py-3 px-4 text-gray-700 font-semibold">
                                   Name
                                 </th>
+                                {/* Time column removed
                                 <th className="py-3 px-4 text-gray-700 font-semibold">
+                                  Time
+                                </th>
+                                */}
+<th className="py-3 px-4 text-gray-700 font-semibold">
                                   Status
                                 </th>
                               </tr>

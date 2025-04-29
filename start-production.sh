@@ -16,7 +16,7 @@ fi
 
 # Start the application with PM2
 echo "Starting application with PM2..."
-pm2 start ecosystem.config.js
+pm2 start ecosystem.config.cjs
 
 echo "Application started successfully!"
 echo "You can monitor the application with: pm2 monit"

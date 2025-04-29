@@ -34,26 +34,32 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
-
-# Load .env file if it exists
 load_dotenv()
 
 # trusted client IP (default: replace with your client IP or set via env)
-ALLOWED_CLIENT_IP = os.getenv("ALLOWED_CLIENT_IP", "127.0.0.1")
+HOST_IP = os.getenv("HOST_IP", "127.0.0.1")
+ALLOWED_CLIENT_IP = os.getenv("ALLOWED_CLIENT_IP", HOST_IP)
 # server host binding (default all interfaces)
 SERVER_HOST = os.getenv("SERVER_HOST", "0.0.0.0")
-SERVER_PORT = os.getenv("SERVER_PORT", "8000")
+SERVER_PORT = os.getenv("SERVER_PORT", "5021")  # Set default port to 5021
+FRONTEND_PORT = os.getenv("FRONTEND_PORT", "5022")  # Set default frontend port to 5022
 
-print(ALLOWED_CLIENT_IP)
-print(SERVER_HOST)
-print(SERVER_PORT)
+print(f"Host IP: {HOST_IP}")
+print(f"Server host: {SERVER_HOST}")
+print(f"Server port: {SERVER_PORT}")
 
 app = FastAPI(title="AI Student Attendance System")
 
-# CORS setup (adjust origin to match your client host)
+# CORS setup - Allow requests from the frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://172.16.3.242:5173"],
+    allow_origins=[
+        f"http://{HOST_IP}:{FRONTEND_PORT}", 
+        f"http://localhost:{FRONTEND_PORT}",
+        "http://localhost:5173",
+        f"http://127.0.0.1:{FRONTEND_PORT}",
+        "*"  # Allow all origins during development. Remove in production for better security
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
