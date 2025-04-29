@@ -274,9 +274,25 @@ export default function AdminPage() {
       const deptId = dept;
       const isDeptExpanded = expandedGroups[deptId];
 
+      // Get maximum number of columns needed across all dates/subjects
+      const baseColumnCount = 5; // Register, Name, Dept, Year, Section
+      let maxSubjectCount = 0;
+      
+      // Calculate max number of subjects for proper colSpan
+      Object.values(years).forEach(sections => {
+        Object.values(sections).forEach(dates => {
+          Object.values(dates).forEach(subjects => {
+            const subjectCount = Object.keys(subjects).length;
+            maxSubjectCount = Math.max(maxSubjectCount, subjectCount);
+          });
+        });
+      });
+      
+      const totalColumns = baseColumnCount + maxSubjectCount;
+
       rows.push(
         <tr key={deptId} className="bg-blue-100 font-semibold text-gray-800">
-          <td colSpan={6} className="px-4 py-4 rounded-t-lg">
+          <td colSpan={totalColumns} className="px-4 py-4 rounded-t-lg">
             <button
               onClick={() => toggleGroup(deptId)}
               className="flex items-center hover:text-blue-700 transition-colors duration-200 w-full text-left"
@@ -300,7 +316,7 @@ export default function AdminPage() {
 
         rows.push(
           <tr key={yearId} className="bg-teal-50 font-medium text-gray-700">
-            <td colSpan={6} className="px-6 py-3">
+            <td colSpan={totalColumns} className="px-6 py-3">
               <button
                 onClick={() => toggleGroup(yearId)}
                 className="flex items-center hover:text-teal-600 transition-colors duration-200 w-full text-left"
@@ -324,7 +340,7 @@ export default function AdminPage() {
 
           rows.push(
             <tr key={sectionId} className="bg-green-50">
-              <td colSpan={6} className="px-8 py-3">
+              <td colSpan={totalColumns} className="px-8 py-3">
                 <button
                   onClick={() => toggleGroup(sectionId)}
                   className="flex items-center hover:text-green-600 transition-colors duration-200 w-full text-left"
@@ -349,7 +365,7 @@ export default function AdminPage() {
 
             rows.push(
               <tr key={dateId} className="bg-gray-100">
-                <td colSpan={6} className="px-10 py-3">
+                <td colSpan={totalColumns} className="px-10 py-3">
                   <button
                     onClick={() => toggleGroup(dateId)}
                     className="flex items-center hover:text-gray-700 transition-colors duration-200 w-full text-left"
@@ -367,7 +383,6 @@ export default function AdminPage() {
 
             if (!isDateExpanded) return;
             
-            // New date-centric display with subjects as columns
             // Gather all subjects for this date
             const allSubjects = Object.keys(subjects).sort();
             
@@ -386,6 +401,10 @@ export default function AdminPage() {
                   >
                     <div className="truncate" title={subject}>{subject}</div>
                   </th>
+                ))}
+                {/* Add empty columns if needed to match totalColumns */}
+                {[...Array(Math.max(0, totalColumns - baseColumnCount - allSubjects.length))].map((_, i) => (
+                  <th key={`${dateId}-empty-${i}`} className="px-2 py-2"></th>
                 ))}
               </tr>            
             );
@@ -421,7 +440,7 @@ export default function AdminPage() {
               const rowId = `${dateId}-student-${student.register_number}`;
               const isEditing = editingRow === rowId;
               
-                rows.push(
+              rows.push(
                 <tr 
                   key={rowId} 
                   className={`${idx % 2 === 0 ? "bg-white" : "bg-gray-50"} ${isEditing ? "bg-blue-50" : ""} relative group`}
@@ -435,52 +454,58 @@ export default function AdminPage() {
                   
                   {/* For each subject, show attendance status and time */}
                   {allSubjects.map(subject => {
-                  const attendance = student.subjects[subject];
-                  return (
-                    <React.Fragment key={`${dateId}-student-${student.register_number}-${subject}`}>
-                    <td className="px-1 sm:px-2 py-1 sm:py-2 text-xs text-center">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-center">
-                      {attendance ? (
-                        isEditing ? (
-                        <select 
-                          className={`w-full px-1 sm:px-2 py-0.5 sm:py-1 text-xs rounded-md border ${
-                          editedData[`${student.register_number}-${subject}`] !== undefined ? 
-                            editedData[`${student.register_number}-${subject}`] ? "border-green-500" : "border-red-500" :
-                            attendance.is_present ? "border-green-500" : "border-red-500"
-                          }`}
-                          value={(editedData[`${student.register_number}-${subject}`] !== undefined) ? 
-                          editedData[`${student.register_number}-${subject}`] : attendance.is_present}
-                          onChange={(e) => {
-                          const newValue = e.target.value === "true";
-                          setEditedData(prev => ({
-                            ...prev,
-                            [`${student.register_number}-${subject}`]: newValue
-                          }));
-                          }}
-                        >
-                          <option value="true">Present</option>
-                          <option value="false">Absent</option>
-                        </select>
+                    const attendance = student.subjects[subject];
+                    return (
+                      <td 
+                        key={`${dateId}-student-${student.register_number}-${subject}`}
+                        className="px-1 sm:px-2 py-1 sm:py-2 text-xs text-center"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-center">
+                        {attendance ? (
+                          isEditing ? (
+                            <select 
+                              className={`w-full px-1 sm:px-2 py-0.5 sm:py-1 text-xs rounded-md border ${
+                                editedData[`${student.register_number}-${subject}`] !== undefined ? 
+                                  editedData[`${student.register_number}-${subject}`] ? "border-green-500" : "border-red-500" :
+                                  attendance.is_present ? "border-green-500" : "border-red-500"
+                              }`}
+                              value={(editedData[`${student.register_number}-${subject}`] !== undefined) ? 
+                                editedData[`${student.register_number}-${subject}`] : attendance.is_present}
+                              onChange={(e) => {
+                                const newValue = e.target.value === "true";
+                                setEditedData(prev => ({
+                                  ...prev,
+                                  [`${student.register_number}-${subject}`]: newValue
+                                }));
+                              }}
+                            >
+                              <option value="true">Present</option>
+                              <option value="false">Absent</option>
+                            </select>
+                          ) : (
+                            <span className={`inline-flex items-center px-1.5 sm:px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${
+                              attendance.is_present ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                            }`}>
+                              {attendance.is_present ? "P" : "A"}
+                              <span className="hidden sm:inline">
+                                {attendance.is_present ? "resent" : "bsent"}
+                              </span>
+                            </span>
+                          )
                         ) : (
-                        <span className={`inline-flex items-center px-1.5 sm:px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${
-                          attendance.is_present ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                        }`}>
-                          {attendance.is_present ? "P" : "A"}
-                          <span className="hidden sm:inline">
-                          {attendance.is_present ? "resent" : "bsent"}
-                          </span>
-                        </span>
-                        )
-                      ) : (
-                        <span className="text-gray-400 text-[10px] sm:text-xs">N/A</span>
-                      )}
-                      </div>
-                    </td>
-                    </React.Fragment>
-                  );
+                          <span className="text-gray-400 text-[10px] sm:text-xs">N/A</span>
+                        )}
+                        </div>
+                      </td>
+                    );
                   })}
+                  
+                  {/* Add empty cells if needed to match totalColumns */}
+                  {[...Array(Math.max(0, totalColumns - baseColumnCount - allSubjects.length))].map((_, i) => (
+                    <td key={`${rowId}-empty-${i}`} className="px-1 py-1"></td>
+                  ))}
                 </tr>
-                );
+              );
             });
             
             // Add a summary row for this date
@@ -497,13 +522,19 @@ export default function AdminPage() {
                   const percentage = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
                   
                   return (
-                    <React.Fragment key={`${dateId}-summary-${subject}`}>
-                      <td colSpan={2} className="px-2 py-2 text-xs text-center border-r border-gray-300">
-                        Present: {presentCount}/{totalCount} ({percentage}%)
-                      </td>
-                    </React.Fragment>
+                    <td
+                      key={`${dateId}-summary-${subject}`}
+                      className="px-2 py-2 text-xs text-center border-r border-gray-300"
+                    >
+                      Present: {presentCount}/{totalCount} ({percentage}%)
+                    </td>
                   );
                 })}
+                
+                {/* Add empty cells for summary row if needed */}
+                {[...Array(Math.max(0, totalColumns - baseColumnCount - allSubjects.length))].map((_, i) => (
+                  <td key={`${dateId}-summary-empty-${i}`} className="px-2 py-2"></td>
+                ))}
               </tr>
             );
           });
@@ -512,7 +543,7 @@ export default function AdminPage() {
     });
 
     return rows;
-  }, [groupedData, expandedGroups]);
+  }, [groupedData, expandedGroups, editingRow, editedData]);
 
   // Function to export data as XLSX with each date on a separate sheet
   const exportToXLSX = () => {
