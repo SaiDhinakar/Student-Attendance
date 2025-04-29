@@ -53,7 +53,7 @@ app = FastAPI(title="AI Student Attendance System")
 # CORS setup (adjust origin to match your client host)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://192.168.8.86:5173"],
+    allow_origins=["http://172.16.3.242:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -63,8 +63,6 @@ app.add_middleware(
 @app.middleware("http")
 async def restrict_remote_ip(request: Request, call_next):
     client_ip = request.client.host
-    if not client_ip.startswith("192.168."):
-        return JSONResponse(status_code=403, content={"detail": "Forbidden"})
     return await call_next(request)
 
 DB_PATH = "backend/attendance.db"
@@ -1003,6 +1001,8 @@ async def get_attendance(
                 s.register_number,
                 s.name,
                 sec.section_name,
+                b.year,
+                d.dept_name,
                 sub.subject_code,
                 sub.subject_name,
                 t.date,
@@ -1036,6 +1036,9 @@ async def get_attendance(
             query += " AND t.date = ?"
             params.append(date)
 
+        # Add sorting to ensure consistent results, regardless of filter settings
+        query += " ORDER BY t.date DESC, t.start_time DESC, s.register_number ASC"
+
         cursor.execute(query, params)
         results = cursor.fetchall()
         conn.close()
@@ -1046,6 +1049,8 @@ async def get_attendance(
                 "register_number": row["register_number"],
                 "name": row["name"],
                 "section_name": row["section_name"],
+                "dept_name": row["dept_name"], 
+                "year": row["year"],
                 "subject_code": row["subject_code"],
                 "subject_name": row["subject_name"],
                 "date": row["date"],

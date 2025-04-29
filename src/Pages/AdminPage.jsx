@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Filter, ChevronDown, ChevronUp, ChevronRight, Calendar, FileText, Download } from "lucide-react";
+import { Filter, ChevronDown, ChevronUp, ChevronRight, Calendar, FileText, Download, Edit2, Save, X, Check } from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import Header from "../components/Header";
@@ -11,6 +11,7 @@ import * as XLSX from "xlsx";
 export default function AdminPage() {
   const navigate = useNavigate();
   const role = localStorage.getItem("role");
+  const isSuperuser = role === "superadmin"; // Check if user is a superuser
   const [filters, setFilters] = useState({
     dept_name: "",
     year: "",
@@ -29,6 +30,9 @@ export default function AdminPage() {
   const [isFilterVisible, setIsFilterVisible] = useState(true);
   const [groupedData, setGroupedData] = useState({});
   const [expandedGroups, setExpandedGroups] = useState({});
+  const [editingRow, setEditingRow] = useState(null); // Track which row is being edited
+  const [successMessage, setSuccessMessage] = useState('');
+  const [editedData, setEditedData] = useState({}); // Store edited values
 
   // Fetch departments on component mount
   useEffect(() => {
@@ -93,13 +97,11 @@ export default function AdminPage() {
   const handleApplyFilters = async () => {
     setLoading(true);
     setError(null);
+    setSuccessMessage('');
 
-    if (!filters.dept_name && !filters.year && !filters.section_name && !filters.subject_code && !filters.date) {
-      setError("Please select at least one filter");
-      setLoading(false);
-      return;
-    }
-
+    // Always allow filtering with no specific filters - this will show all attendance records
+    // Instead of requiring at least one filter
+    
     const params = new URLSearchParams();
     if (filters.dept_name) params.append("dept_name", filters.dept_name);
     if (filters.year) params.append("year", filters.year);
@@ -115,16 +117,18 @@ export default function AdminPage() {
     }
 
     try {
+      console.log("Fetching attendance with params:", Object.fromEntries(params.entries()));
       const response = await api.get(`/attendance?${params.toString()}`);
-      if (!response.data) {
+      if (!response.data || !response.data.attendance || response.data.attendance.length === 0) {
         setError("No attendance records found for the selected filters");
         setAttendanceData([]);
         setGroupedData({});
+        setLoading(false);
         return;
       }
 
-      setAttendanceData(response.data);
-      groupAttendanceData(response.data);
+      setAttendanceData(response.data.attendance);
+      groupAttendanceData(response.data.attendance);
     } catch (err) {
       console.error("Error fetching attendance data:", err);
       setError(err.response?.data?.detail || "Failed to fetch attendance data. Please try different filters.");
@@ -197,6 +201,7 @@ export default function AdminPage() {
 
       if (record.register_number || record.roll_number || record.id) {
         grouped[dept_name][year][section_name][date][subject_code].students.push({
+          attendance_id: record.attendance_id, // Ensure attendance_id is preserved
           register_number: record.register_number || record.roll_number || record.id,
           name: record.name || record.student_name || "Unknown",
           is_present: record.is_present === 1 || record.status === "Present",
@@ -369,24 +374,21 @@ export default function AdminPage() {
             // Generate the table header row with subjects
             rows.push(
               <tr key={`${dateId}-header`} className="bg-indigo-50">
-                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Register Number</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Name</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Department</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Year</th>
-                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">Section</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 w-28">Register Number</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 w-32">Name</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 w-24 hidden sm:table-cell">Department</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 w-16 hidden sm:table-cell">Year</th>
+                <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700 w-16 hidden sm:table-cell">Section</th>
                 {allSubjects.map(subject => (
-                  <React.Fragment key={`${dateId}-header-${subject}`}>
-                    <th className="px-2 py-2 text-center text-xs font-semibold text-gray-700">
-                      {subject}
-                    </th>
-                    <th className="px-2 py-2 text-center text-xs font-semibold text-gray-700 border-r border-gray-200">
-                      Time
-                    </th>
-                  </React.Fragment>
+                  <th 
+                    key={`${dateId}-header-${subject}`}
+                    className="px-2 py-2 text-center text-xs font-semibold text-gray-700 min-w-[60px] max-w-[80px]"
+                  >
+                    <div className="truncate" title={subject}>{subject}</div>
+                  </th>
                 ))}
-              </tr>
+              </tr>            
             );
-            
             // Collect all unique students for this date across all subjects
             const studentsMap = {};
             
@@ -416,41 +418,69 @@ export default function AdminPage() {
             
             // Generate rows for each student with attendance for each subject
             sortedStudents.forEach((student, idx) => {
-              rows.push(
+              const rowId = `${dateId}-student-${student.register_number}`;
+              const isEditing = editingRow === rowId;
+              
+                rows.push(
                 <tr 
-                  key={`${dateId}-student-${student.register_number}`} 
-                  className={idx % 2 === 0 ? "bg-white" : "bg-gray-50"}
+                  key={rowId} 
+                  className={`${idx % 2 === 0 ? "bg-white" : "bg-gray-50"} ${isEditing ? "bg-blue-50" : ""} relative group`}
                 >
-                  <td className="px-4 py-2 text-sm text-gray-800">{student.register_number}</td>
-                  <td className="px-4 py-2 text-sm text-gray-800">{student.name}</td>
-                  <td className="px-4 py-2 text-sm text-gray-800">{dept}</td>
-                  <td className="px-4 py-2 text-sm text-gray-800">{year}</td>
-                  <td className="px-4 py-2 text-sm text-gray-800">{section}</td>
+                  {/* Responsive cell widths and padding */}
+                  <td className="px-2 sm:px-4 py-1 sm:py-2 text-xs sm:text-sm text-gray-800 whitespace-nowrap">{student.register_number}</td>
+                  <td className="px-2 sm:px-4 py-1 sm:py-2 text-xs sm:text-sm text-gray-800 max-w-[100px] sm:max-w-none truncate">{student.name}</td>
+                  <td className="px-2 sm:px-4 py-1 sm:py-2 text-xs sm:text-sm text-gray-800 hidden sm:table-cell">{dept}</td>
+                  <td className="px-2 sm:px-4 py-1 sm:py-2 text-xs sm:text-sm text-gray-800 hidden sm:table-cell">{year}</td>
+                  <td className="px-2 sm:px-4 py-1 sm:py-2 text-xs sm:text-sm text-gray-800 hidden sm:table-cell">{section}</td>
                   
                   {/* For each subject, show attendance status and time */}
                   {allSubjects.map(subject => {
-                    const attendance = student.subjects[subject];
-                    return (
-                      <React.Fragment key={`${dateId}-student-${student.register_number}-${subject}`}>
-                        <td className="px-2 py-2 text-sm text-center">
-                          {attendance ? (
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                              attendance.is_present ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                            }`}>
-                              {attendance.is_present ? "Present" : "Absent"}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400">N/A</span>
-                          )}
-                        </td>
-                        <td className="px-2 py-2 text-sm text-center text-gray-600 border-r border-gray-200">
-                          {attendance ? attendance.time : "-"}
-                        </td>
-                      </React.Fragment>
-                    );
+                  const attendance = student.subjects[subject];
+                  return (
+                    <React.Fragment key={`${dateId}-student-${student.register_number}-${subject}`}>
+                    <td className="px-1 sm:px-2 py-1 sm:py-2 text-xs text-center">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-center">
+                      {attendance ? (
+                        isEditing ? (
+                        <select 
+                          className={`w-full px-1 sm:px-2 py-0.5 sm:py-1 text-xs rounded-md border ${
+                          editedData[`${student.register_number}-${subject}`] !== undefined ? 
+                            editedData[`${student.register_number}-${subject}`] ? "border-green-500" : "border-red-500" :
+                            attendance.is_present ? "border-green-500" : "border-red-500"
+                          }`}
+                          value={(editedData[`${student.register_number}-${subject}`] !== undefined) ? 
+                          editedData[`${student.register_number}-${subject}`] : attendance.is_present}
+                          onChange={(e) => {
+                          const newValue = e.target.value === "true";
+                          setEditedData(prev => ({
+                            ...prev,
+                            [`${student.register_number}-${subject}`]: newValue
+                          }));
+                          }}
+                        >
+                          <option value="true">Present</option>
+                          <option value="false">Absent</option>
+                        </select>
+                        ) : (
+                        <span className={`inline-flex items-center px-1.5 sm:px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${
+                          attendance.is_present ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                        }`}>
+                          {attendance.is_present ? "P" : "A"}
+                          <span className="hidden sm:inline">
+                          {attendance.is_present ? "resent" : "bsent"}
+                          </span>
+                        </span>
+                        )
+                      ) : (
+                        <span className="text-gray-400 text-[10px] sm:text-xs">N/A</span>
+                      )}
+                      </div>
+                    </td>
+                    </React.Fragment>
+                  );
                   })}
                 </tr>
-              );
+                );
             });
             
             // Add a summary row for this date
@@ -483,69 +513,6 @@ export default function AdminPage() {
 
     return rows;
   }, [groupedData, expandedGroups]);
-
-  // Function to export data as CSV
-  const exportToCSV = () => {
-    if (Object.keys(groupedData).length === 0) {
-      setError("No data to export");
-      return;
-    }
-    
-    try {
-      // Create CSV header
-      let csvContent = "Department,Year,Section,Date,Subject,Register Number,Name,Status,Time\n";
-      
-      // Flatten the hierarchical data structure for CSV
-      Object.entries(groupedData).forEach(([dept, years]) => {
-        Object.entries(years).forEach(([year, sections]) => {
-          Object.entries(sections).forEach(([section, dates]) => {
-            Object.entries(dates).forEach(([date, subjects]) => {
-              const formattedDate = formatDate(date);
-              Object.entries(subjects).forEach(([subject, { students }]) => {
-                students.forEach((student) => {
-                  // Format each row of data
-                  const row = [
-                    dept,
-                    year,
-                    section,
-                    formattedDate,
-                    subject,
-                    student.register_number,
-                    student.name,
-                    student.is_present ? "Present" : "Absent",
-                    student.timestamp || "-"
-                  ].map(item => `"${String(item).replace(/"/g, '""')}"`).join(",");
-                  
-                  csvContent += row + "\n";
-                });
-              });
-            });
-          });
-        });
-      });
-      
-      // Create and download the CSV file
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      
-      // Create filename with date for uniqueness
-      const currentDate = new Date().toISOString().split('T')[0];
-      let filename = `attendance_${currentDate}`;
-      if (filters.dept_name) filename += `_${filters.dept_name}`;
-      if (filters.year) filename += `_Year${filters.year}`;
-      if (filters.section_name) filename += `_${filters.section_name}`;
-      if (filters.subject_code) filename += `_${filters.subject_code}`;
-      if (filters.date) filename += `_${filters.date.toISOString().split('T')[0]}`;
-      
-      link.download = `${filename}.csv`;
-      link.click();
-      URL.revokeObjectURL(link.href);
-    } catch (error) {
-      console.error("Error exporting CSV:", error);
-      setError("Failed to export CSV file");
-    }
-  };
 
   // Function to export data as XLSX with each date on a separate sheet
   const exportToXLSX = () => {
@@ -927,24 +894,6 @@ export default function AdminPage() {
           ) : (
             <div className="overflow-x-auto max-h-[600px]">
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-100 sticky top-0 z-10 shadow-sm">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      Roll No
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      Student Name
-                    </th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                      Time
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider"></th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider"></th>
-                  </tr>
-                </thead>
                 <tbody className="bg-white divide-y divide-gray-200">{renderTableRows}</tbody>
               </table>
             </div>
