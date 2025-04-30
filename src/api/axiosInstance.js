@@ -4,25 +4,19 @@ import axios from "axios";
 const getServerBaseUrl = () => {
   // For Vite applications, we must use import.meta.env, not process.env
   if (import.meta.env && import.meta.env.VITE_SERVER_BASE_URL) {
-    console.log("Using Vite environment variable for backend URL:", import.meta.env.VITE_SERVER_BASE_URL);
+    console.log("Using Vite environment variable for backend URL:");
     return import.meta.env.VITE_SERVER_BASE_URL;
   }
-  
-  // Try to detect the current host for production
-  // When falling back, prefer to use your configured IP, not dynamic detection
-  const serverUrl = "http://192.168.8.86:5021"; // Your configured backend IP
-  console.log("Using hardcoded backend URL:", serverUrl);
-  return serverUrl;
 };
 
-const SERVER_BASE_URL = "http://192.168.8.86:5021";
+const SERVER_BASE_URL = getServerBaseUrl();
 
 console.log("API connecting to:", SERVER_BASE_URL);
-console.log("Environment details:", {
-  viteEnv: import.meta.env,
-  hasViteServerUrl: Boolean(import.meta.env && import.meta.env.VITE_SERVER_BASE_URL),
-  windowLocation: window.location.toString()
-});
+// console.log("Environment details:", {
+//   viteEnv: import.meta.env,
+//   hasViteServerUrl: Boolean(import.meta.env && import.meta.env.VITE_SERVER_BASE_URL),
+//   windowLocation: window.location.toString()
+// });
 
 
 const api = axios.create({
