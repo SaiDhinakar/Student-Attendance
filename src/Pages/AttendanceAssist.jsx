@@ -133,7 +133,7 @@ export default function AttendanceAssist() {
           onChange={handleImageUpload}
         />
         
-        {error && <p className="text-red-500 text-center mb-4">{error}</p>}
+        {error && <p className="text-red-500 text-center mb-4 mt-4">{error}</p>}
         {images.length === 0 ? (
           <div className="mt-12">
             <div className="relative flex justify-center mb-8">

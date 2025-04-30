@@ -2,25 +2,28 @@ import axios from "axios";
 
 // Get the backend URL from environment variables with fallbacks
 const getServerBaseUrl = () => {
-  // For development with Vite
-  if (import.meta.env.VITE_SERVER_BASE_URL) {
-    console.log("Using environment variable for backend URL:", import.meta.env.VITE_SERVER_BASE_URL);
+  // For Vite applications, we must use import.meta.env, not process.env
+  if (import.meta.env && import.meta.env.VITE_SERVER_BASE_URL) {
+    console.log("Using Vite environment variable for backend URL:", import.meta.env.VITE_SERVER_BASE_URL);
     return import.meta.env.VITE_SERVER_BASE_URL;
   }
   
   // Try to detect the current host for production
-  const currentHost = window.location.hostname;
-  const defaultPort = "5021"; // Backend port
-  
-  // Use the current hostname with backend port
-  const calculatedUrl = `http://${currentHost}:${defaultPort}`;
-  console.log("Using calculated backend URL:", calculatedUrl);
-  return calculatedUrl;
+  // When falling back, prefer to use your configured IP, not dynamic detection
+  const serverUrl = "http://192.168.8.86:5021"; // Your configured backend IP
+  console.log("Using hardcoded backend URL:", serverUrl);
+  return serverUrl;
 };
 
-const SERVER_BASE_URL = getServerBaseUrl();
+const SERVER_BASE_URL = "http://192.168.8.86:5021";
 
 console.log("API connecting to:", SERVER_BASE_URL);
+console.log("Environment details:", {
+  viteEnv: import.meta.env,
+  hasViteServerUrl: Boolean(import.meta.env && import.meta.env.VITE_SERVER_BASE_URL),
+  windowLocation: window.location.toString()
+});
+
 
 const api = axios.create({
   baseURL: SERVER_BASE_URL,

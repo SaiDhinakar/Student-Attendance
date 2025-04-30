@@ -48,18 +48,12 @@ print(f"Host IP: {HOST_IP}")
 print(f"Server host: {SERVER_HOST}")
 print(f"Server port: {SERVER_PORT}")
 
-app = FastAPI(title="AI Student Attendance System")
+app = FastAPI(title="AI Student Attendance System", docs_url=None, redoc_url=None)
 
 # CORS setup - Allow requests from the frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        f"http://{HOST_IP}:{FRONTEND_PORT}", 
-        f"http://localhost:{FRONTEND_PORT}",
-        "http://localhost:5173",
-        f"http://127.0.0.1:{FRONTEND_PORT}",
-        "*"  # Allow all origins during development. Remove in production for better security
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
