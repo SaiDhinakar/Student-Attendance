@@ -83,6 +83,22 @@ module.exports = {
       exec_mode: "fork",
       watch: false,
       autorestart: true
-    }
+    },
+    {
+      name: "student-gallery-management-app",
+      script: "gallery_manager_app/src/main.py",
+      interpreter: "./venv/bin/python3",
+      env: {
+        SERVER_HOST: envConfig.SERVER_HOST || "0.0.0.0",
+        SERVER_PORT: envConfig.GALLERY_SERVER_PORT,
+        ALLOWED_CLIENT_IP: HOST_IP,
+        HOST_IP: HOST_IP,
+        SECRET_KEY: envConfig.SECRET_KEY || "production-secret-key-change-me"
+      },
+      instances: 1,
+      exec_mode: "fork",
+      watch: false,
+      autorestart: true
+    },
   ]
 };

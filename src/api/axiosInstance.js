@@ -3,20 +3,20 @@ import axios from "axios";
 // Get the backend URL from environment variables with fallbacks
 const getServerBaseUrl = () => {
   // For Vite applications, we must use import.meta.env, not process.env
-  if (import.meta.env && import.meta.env.VITE_BACKEND_SERVER_BASE_URL) {
+  if (import.meta.env && import.meta.env.VITE_SERVER_BASE_URL) {
     console.log("Using Vite environment variable for backend URL:");
-    return import.meta.env.VITE_BACKEND_SERVER_BASE_URL;
+    return import.meta.env.VITE_SERVER_BASE_URL;
   }
 };
 
 const SERVER_BASE_URL = getServerBaseUrl();
 
 console.log("API connecting to:", SERVER_BASE_URL);
-// console.log("Environment details:", {
-//   viteEnv: import.meta.env,
-//   hasViteServerUrl: Boolean(import.meta.env && import.meta.env.VITE_SERVER_BASE_URL),
-//   windowLocation: window.location.toString()
-// });
+console.log("Environment details:", {
+  viteEnv: import.meta.env,
+  hasViteServerUrl: Boolean(import.meta.env && import.meta.env.VITE_SERVER_BASE_URL),
+  windowLocation: window.location.toString()
+});
 
 
 const api = axios.create({

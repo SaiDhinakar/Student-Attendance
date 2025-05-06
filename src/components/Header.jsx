@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Menu, X, Home, UserCog, LogIn, LogOut, FileTextIcon } from "lucide-react";
 import { Link } from "react-router-dom";
+import { MdAdminPanelSettings } from "react-icons/md";
 
 export default function Header() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -52,6 +53,7 @@ export default function Header() {
       // Show SuperAdmin option ONLY for superadmin users
       if (isSuperAdmin() && pathname !== "/superadmin") {
         links.push({ to: "/superadmin", label: "SuperAdmin", icon: <UserCog size={20} /> });
+        links.push({ to: "http://192.168.8.86:5045/gallery-manager", label: "Gallery Manager", icon: <MdAdminPanelSettings size={20} /> });
       }
       
       // Always show logout for authenticated users
@@ -97,7 +99,7 @@ export default function Header() {
           </div>
 
           {/* Desktop Nav Links */}
-          <nav className="hidden sm:flex gap-4 md:gap-6 text-gray-800 font-medium">
+          <nav className="hidden sm:flex gap-4 md:gap-4 text-gray-800 font-medium">
             {navLinks.map((link) =>
               link.logout ? (
                 <button 

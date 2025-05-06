@@ -365,12 +365,12 @@ const AttendanceForm = () => {
                       className="mt-1 block w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                       required
                     >
-                      <option value="">Select Department</option>
+                      {/* <option value="">Select Department</option>
                       {departments.map((dept) => (
                         <option key={dept.dept_name} value={dept.dept_name}>
                           {dept.dept_name}
                         </option>
-                      ))}
+                      ))} */}
                     </select>
                   </div>
                   <div>
