@@ -2,6 +2,9 @@ import os
 import json
 import uuid
 import re
+import asyncio
+import concurrent.futures
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
@@ -28,6 +31,8 @@ import bcrypt
 from jose import jwt
 from jose.exceptions import JWTError, ExpiredSignatureError
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import threading
+from queue import Queue
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -48,7 +53,122 @@ print(f"Host IP: {HOST_IP}")
 print(f"Server host: {SERVER_HOST}")
 print(f"Server port: {SERVER_PORT}")
 
-app = FastAPI(title="AI Student Attendance System", docs_url=None, redoc_url=None)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    global executor, db_pool, admin_db_pool, face_model, yolo_model, device
+    
+    # Initialize thread pool for CPU-intensive tasks
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+    
+    # Initialize database connection pools
+    db_pool = DatabasePool(DB_PATH, pool_size=20)
+    admin_db_pool = DatabasePool(ADMIN_DB_PATH, pool_size=10)
+    
+    # Initialize admin database schema and default superadmin
+    init_admin_db()
+
+    if not Path(DB_PATH).exists():
+        raise FileNotFoundError("Database file 'attendance.db' not found.")
+
+    model_path = "backend/checkpoints/LightCNN_29Layers_V2_checkpoint.pth.tar"
+    yolo_path = "backend/yolo/weights/yolo11n-face.pt"
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logger.info(f"Using {device} for inference")
+
+    try:
+        face_model = LightCNN_29Layers_v2(num_classes=100)
+        checkpoint = torch.load(model_path, map_location=device)
+        new_state_dict = {k.replace("module.", ""): v for k, v in checkpoint.get("state_dict", checkpoint).items() if 'fc2' not in k}
+        face_model.load_state_dict(new_state_dict, strict=False)
+        face_model = face_model.to(device)
+        face_model.eval()
+        logger.info("Face recognition model loaded")
+    except Exception as e:
+        logger.error(f"Error loading face model: {e}")
+        raise RuntimeError(f"Failed to load face recognition model: {e}")
+
+    try:
+        yolo_model = YOLO(yolo_path)
+        logger.info("YOLO face detection model loaded")
+    except Exception as e:
+        logger.error(f"Error loading YOLO model: {e}")
+        raise RuntimeError(f"Failed to load YOLO model: {e}")
+    
+    # Initialize time blocks during startup
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Check if time blocks already exist
+        cursor.execute("SELECT COUNT(*) FROM TimeBlocks")
+        count = cursor.fetchone()[0]
+        
+        if count == 0:
+            # Define time blocks for 2nd year (1-hour periods)
+            second_year_blocks = [
+                (2, 1, "8:30", "9:30"),
+                (2, 2, "9:30", "10:30"),
+                (2, 3, "10:50", "11:50"),
+                (2, 4, "11:50", "12:50"),
+                (2, 5, "12:50", "1:40"),
+                (2, 6, "1:40", "2:40"),
+                (2, 7, "2:40", "3:25"),
+                (2, 8, "3:45", "4:30"),
+            ]
+            
+            # Define time blocks for 1st and 3rd years (45-minute periods)
+            other_years_blocks = [
+                (1, 1, "8:30", "9:15"),
+                (1, 2, "9:15", "10:00"),
+                (1, 3, "10:00", "10:45"),
+                (1, 4, "11:05", "11:50"),
+                (1, 5, "11:50", "12:35"),
+                (1, 6, "1:20", "2:05"),
+                (1, 7, "2:05", "2:50"),
+                (1, 8, "3:05", "3:50"),
+                (1, 9, "3:50", "4:35"),
+                (3, 1, "8:30", "9:15"),
+                (3, 2, "9:15", "10:00"),
+                (3, 3, "10:00", "10:45"),
+                (3, 4, "11:05", "11:50"),
+                (3, 5, "11:50", "12:35"),
+                (3, 6, "1:20", "2:05"),
+                (3, 7, "2:05", "2:50"),
+                (3, 8, "3:05", "3:50"),
+                (3, 9, "3:50", "4:35"),
+            ]
+            
+            # Insert the blocks
+            cursor.executemany(
+                "INSERT INTO TimeBlocks (batch_year, block_number, start_time, end_time) VALUES (?, ?, ?, ?)",
+                second_year_blocks + other_years_blocks
+            )
+            
+            conn.commit()
+            logger.info("Time blocks initialized during startup")
+        else:
+            logger.info("Time blocks already exist, no initialization needed")
+        
+        return_db_connection(conn)
+    except Exception as e:
+        logger.error(f"Error initializing time blocks: {e}")
+    
+    logger.info("Application startup complete")
+    yield
+    
+    # Shutdown
+    logger.info("Shutting down application...")
+    if executor:
+        executor.shutdown(wait=True)
+    if db_pool:
+        db_pool.close_all()
+    if admin_db_pool:
+        admin_db_pool.close_all()
+    logger.info("Application shutdown complete")
+
+app = FastAPI(title="AI Student Attendance System", docs_url=None, redoc_url=None, lifespan=lifespan)
 
 # CORS setup - Allow requests from the frontend
 app.add_middleware(
@@ -91,17 +211,35 @@ def init_admin_db():
             ("superadmin", pwd_hash, "superadmin")
         )
         conn.commit()
-    conn.close()
+    return_admin_db_connection(conn)
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    if db_pool:
+        return db_pool.get_connection()
+    else:
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+def return_db_connection(conn):
+    if db_pool:
+        db_pool.return_connection(conn)
+    else:
+        conn.close()
 
 def get_admin_db_connection():
-    conn = sqlite3.connect(ADMIN_DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    if admin_db_pool:
+        return admin_db_pool.get_connection()
+    else:
+        conn = sqlite3.connect(ADMIN_DB_PATH, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+def return_admin_db_connection(conn):
+    if admin_db_pool:
+        admin_db_pool.return_connection(conn)
+    else:
+        conn.close()
 
 # Global variables
 face_model = None
@@ -111,6 +249,39 @@ transform = transforms.Compose([
     transforms.Resize((128, 128)),
     transforms.ToTensor(),
 ])
+
+# Thread pool for CPU-intensive tasks
+executor = None
+db_lock = threading.Lock()
+
+# Database connection pool
+class DatabasePool:
+    def __init__(self, db_path: str, pool_size: int = 10):
+        self.db_path = db_path
+        self.pool = Queue(maxsize=pool_size)
+        self.pool_size = pool_size
+        self._init_pool()
+    
+    def _init_pool(self):
+        for _ in range(self.pool_size):
+            conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            conn.row_factory = sqlite3.Row
+            self.pool.put(conn)
+    
+    def get_connection(self):
+        return self.pool.get()
+    
+    def return_connection(self, conn):
+        self.pool.put(conn)
+    
+    def close_all(self):
+        while not self.pool.empty():
+            conn = self.pool.get()
+            conn.close()
+
+# Connection pools
+db_pool = None
+admin_db_pool = None
 
 # Pydantic Models
 class DepartmentResponse(BaseModel):
@@ -251,8 +422,17 @@ def generate_image_filename(dept_name, year, section_name, date, subject_code, t
     
     return f"{base_name}_{unique_id}"
 
-# Process image (using enhancements from old code)
-def process_image(image_bytes, threshold=0.45, gallery=None, save_path=None, filename_base=None, img_index=None, section_id=None):
+# Process image (using enhancements from old code) - Made async and CPU-intensive work moved to thread pool
+async def process_image_async(image_bytes, threshold=0.45, gallery=None, save_path=None, filename_base=None, img_index=None, section_id=None):
+    """Async wrapper for process_image that runs CPU-intensive work in thread pool"""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(
+        executor, 
+        process_image_sync, 
+        image_bytes, threshold, gallery, save_path, filename_base, img_index, section_id
+    )
+
+def process_image_sync(image_bytes, threshold=0.45, gallery=None, save_path=None, filename_base=None, img_index=None, section_id=None):
     try:
         nparr = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -282,7 +462,7 @@ def process_image(image_bytes, threshold=0.45, gallery=None, save_path=None, fil
                 cursor = conn.cursor()
                 cursor.execute("SELECT register_number FROM Students WHERE section_id = ?", (section_id,))
                 section_students = {row["register_number"] for row in cursor.fetchall()}
-                conn.close()
+                return_db_connection(conn)
                 logger.info(f"Loaded {len(section_students)} student IDs for section {section_id}")
             except Exception as e:
                 logger.error(f"Error loading section students: {e}")
@@ -419,99 +599,27 @@ async def get_current_admin(credentials: HTTPAuthorizationCredentials = Depends(
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-# Startup event
-@app.on_event("startup")
-async def startup_event():
-    # Initialize admin database schema and default superadmin
-    init_admin_db()
-    global face_model, yolo_model, device
+# Startup and shutdown handled by lifespan context manager above
 
-    if not Path(DB_PATH).exists():
-        raise FileNotFoundError("Database file 'attendance.db' not found.")
+# Health check endpoint for testing concurrency
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "message": "Server is running and ready to accept requests"
+    }
 
-    model_path = "backend/checkpoints/LightCNN_29Layers_V2_checkpoint.pth.tar"
-    yolo_path = "backend/yolo/weights/yolo11n-face.pt"
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    logger.info(f"Using {device} for inference")
-
-    try:
-        face_model = LightCNN_29Layers_v2(num_classes=100)
-        checkpoint = torch.load(model_path, map_location=device)
-        new_state_dict = {k.replace("module.", ""): v for k, v in checkpoint.get("state_dict", checkpoint).items() if 'fc2' not in k}
-        face_model.load_state_dict(new_state_dict, strict=False)
-        face_model = face_model.to(device)
-        face_model.eval()
-        logger.info("Face recognition model loaded")
-    except Exception as e:
-        logger.error(f"Error loading face model: {e}")
-        raise RuntimeError(f"Failed to load face recognition model: {e}")
-
-    try:
-        yolo_model = YOLO(yolo_path)
-        logger.info("YOLO face detection model loaded")
-    except Exception as e:
-        logger.error(f"Error loading YOLO model: {e}")
-        raise RuntimeError(f"Failed to load YOLO model: {e}")
-    
-    # Initialize time blocks during startup
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Check if time blocks already exist
-        cursor.execute("SELECT COUNT(*) FROM TimeBlocks")
-        count = cursor.fetchone()[0]
-        
-        if count == 0:
-            # Define time blocks for 2nd year (1-hour periods)
-            second_year_blocks = [
-                (2, 1, "8:30", "9:30"),
-                (2, 2, "9:30", "10:30"),
-                (2, 3, "10:50", "11:50"),
-                (2, 4, "11:50", "12:50"),
-                (2, 5, "12:50", "1:40"),
-                (2, 6, "1:40", "2:40"),
-                (2, 7, "2:40", "3:25"),
-                (2, 8, "3:45", "4:30"),
-            ]
-            
-            # Define time blocks for 1st and 3rd years (45-minute periods)
-            other_years_blocks = [
-                (1, 1, "8:30", "9:15"),
-                (1, 2, "9:15", "10:00"),
-                (1, 3, "10:00", "10:45"),
-                (1, 4, "11:05", "11:50"),
-                (1, 5, "11:50", "12:35"),
-                (1, 6, "1:20", "2:05"),
-                (1, 7, "2:05", "2:50"),
-                (1, 8, "3:05", "3:50"),
-                (1, 9, "3:50", "4:35"),
-                (3, 1, "8:30", "9:15"),
-                (3, 2, "9:15", "10:00"),
-                (3, 3, "10:00", "10:45"),
-                (3, 4, "11:05", "11:50"),
-                (3, 5, "11:50", "12:35"),
-                (3, 6, "1:20", "2:05"),
-                (3, 7, "2:05", "2:50"),
-                (3, 8, "3:05", "3:50"),
-                (3, 9, "3:50", "4:35"),
-            ]
-            
-            # Insert the blocks
-            cursor.executemany(
-                "INSERT INTO TimeBlocks (batch_year, block_number, start_time, end_time) VALUES (?, ?, ?, ?)",
-                second_year_blocks + other_years_blocks
-            )
-            
-            conn.commit()
-            logger.info("Time blocks initialized during startup")
-        else:
-            logger.info("Time blocks already exist, no initialization needed")
-        
-        conn.close()
-    except Exception as e:
-        logger.error(f"Error initializing time blocks: {e}")
+# Simple test endpoint for concurrency testing
+@app.get("/test-concurrent/{request_id}")
+async def test_concurrent(request_id: str):
+    # Simulate some async work
+    await asyncio.sleep(1)  # 1 second delay
+    return {
+        "request_id": request_id,
+        "timestamp": datetime.now().isoformat(),
+        "message": f"Request {request_id} processed successfully"
+    }
 
 # Get current time block
 
@@ -524,7 +632,7 @@ async def get_all_time_blocks():
     cursor.execute("SELECT * FROM TimeBlocks ORDER BY batch_year, block_number")
     blocks = cursor.fetchall()
     print(blocks)
-    conn.close()
+    return_db_connection(conn)
     
     return [dict(block) for block in blocks]
 
@@ -558,7 +666,7 @@ async def get_current_time_block(batch_year: int):
     
     block = cursor.fetchone()
     print("Blocks:",block)
-    conn.close()
+    return_db_connection(conn)
     
     if block:
         return {"success": True, "data": dict(block)}
@@ -827,7 +935,7 @@ async def process_images(
         filename_base = generate_image_filename(dept_name, year, section_name, date, subject_code, f"{start_time}-{end_time}")
         for img_index, image in enumerate(images):
             contents = await image.read()
-            img_base64, detected_ids = process_image(contents, threshold, gallery, save_path, filename_base, img_index, section_id)
+            img_base64, detected_ids = await process_image_async(contents, threshold, gallery, save_path, filename_base, img_index, section_id)
             images_base64.append(img_base64)
             detected_students.update(detected_ids)
             
@@ -1795,5 +1903,14 @@ async def delete_admin(admin_id: int, current_user: dict = Depends(get_current_a
     return {"message": "Admin deleted successfully"}
 
 if __name__ == "__main__":
-    print(f"Starting server with auto-reload enabled...")
-    uvicorn.run("main:app", host=SERVER_HOST, port=int(SERVER_PORT), reload=True)
+    print(f"Starting server with optimized concurrency settings...")
+    uvicorn.run(
+        "main:app", 
+        host=SERVER_HOST, 
+        port=int(SERVER_PORT), 
+        reload=True,
+        workers=1,  # Single worker for development; increase for production
+        loop="asyncio",
+        access_log=True,
+        log_level="info"
+    )
