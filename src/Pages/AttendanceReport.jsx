@@ -44,9 +44,6 @@ export default function AttendanceReport() {
       .then((response) => {
         console.log("Departments loaded:", response.data);
         setDepartments(response.data);
-        
-        // After departments are loaded, try to fetch attendance
-        fetchInitialAttendance();
       })
       .catch((err) => {
         console.error("Failed to fetch departments:", err);
@@ -54,25 +51,32 @@ export default function AttendanceReport() {
       });
   }, []);
 
-  // Function to fetch initial attendance data
-  const fetchInitialAttendance = async () => {
-    try {
-      console.log("Fetching initial attendance data");
-      const response = await api.get("/attendance");
-      
-      console.log("Initial attendance data:", response.data);
-      
-      if (response.data.attendance && response.data.attendance.length > 0) {
-        processAttendanceData(response.data.attendance);
-      } else {
-        console.log("No initial attendance data found");
-        setAttendanceData([]);
+  // Fetch initial attendance data separately to avoid dependencies
+  useEffect(() => {
+    const fetchInitialAttendance = async () => {
+      try {
+        console.log("Fetching initial attendance data");
+        const response = await api.get("/attendance");
+        
+        console.log("Initial attendance data:", response.data);
+        
+        if (response.data.attendance && response.data.attendance.length > 0) {
+          processAttendanceData(response.data.attendance);
+        } else {
+          console.log("No initial attendance data found");
+          setAttendanceData([]);
+        }
+      } catch (err) {
+        console.error("Error fetching initial attendance:", err);
+        setError("Could not load attendance data. Please try again.");
       }
-    } catch (err) {
-      console.error("Error fetching initial attendance:", err);
-      setError("Could not load attendance data. Please try again.");
+    };
+
+    // Only fetch if departments are loaded and we don't already have data
+    if (departments.length > 0 && attendanceData.length === 0) {
+      fetchInitialAttendance();
     }
-  };
+  }, [departments.length, attendanceData.length]);
 
   // Function to process attendance data
   const processAttendanceData = (attendanceRecords) => {
@@ -174,9 +178,13 @@ export default function AttendanceReport() {
     setError(null);
   };
 
-  // Add a useEffect to monitor the filters state for debugging purposes
+  // Add a useEffect to monitor the filters state for debugging purposes (throttled)
   useEffect(() => {
-    console.log("Current filters:", filters);
+    const timeoutId = setTimeout(() => {
+      console.log("Current filters:", filters);
+    }, 100);
+    
+    return () => clearTimeout(timeoutId);
   }, [filters]);
 
   const handleApplyFilters = async () => {

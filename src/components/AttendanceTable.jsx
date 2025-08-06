@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useImperativeHandle, forwardRef } from "react";
+import React, { useEffect, useState, useImperativeHandle, forwardRef, useCallback } from "react";
 import { CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/solid';
 import { ArrowDownTrayIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import api from "../api/axiosInstance";
@@ -129,40 +129,49 @@ const AttendanceTable = forwardRef(({ detectedStudentIds = [] }, ref) => {
 
     // Update detected IDs when props change and automatically mark students
     useEffect(() => {
-        if (detectedStudentIds && Array.isArray(detectedStudentIds) && detectedStudentIds.length > 0) {
+        if (detectedStudentIds && Array.isArray(detectedStudentIds) && detectedStudentIds.length > 0 && records.length > 0) {
             console.log("Processing detected student IDs:", detectedStudentIds);
             setDetectedIds(detectedStudentIds);
             
-            // Mark attendance based on detected IDs
-            if (records.length > 0) {
-            const newAutoMarkedStudents = [];
-            const updatedAttendance = { ...attendanceData };
+            // Mark attendance based on detected IDs only if we haven't processed these IDs before
+            const detectedIdsString = detectedStudentIds.sort().join(',');
+            const lastProcessedKey = `lastProcessed_${section}`;
+            const lastProcessed = sessionStorage.getItem(lastProcessedKey);
             
-            records.forEach(record => {
-                const regNumber = String(record.RegisterNumber);
+            if (lastProcessed !== detectedIdsString) {
+                const newAutoMarkedStudents = [];
                 
-                // Direct match: Compare detected IDs to regNumber directly
-                const matches = detectedStudentIds.some(id => {
-                return regNumber === String(id);
+                setAttendanceData(prev => {
+                    const updatedAttendance = { ...prev };
+                    
+                    records.forEach(record => {
+                        const regNumber = String(record.RegisterNumber);
+                        
+                        // Direct match: Compare detected IDs to regNumber directly
+                        const matches = detectedStudentIds.some(id => {
+                            return regNumber === String(id);
+                        });
+                        
+                        if (matches) {
+                            updatedAttendance[regNumber] = {
+                                ...updatedAttendance[regNumber],
+                                status: true
+                            };
+                            newAutoMarkedStudents.push(regNumber);
+                        }
+                    });
+                    
+                    return updatedAttendance;
                 });
                 
-                if (matches) {
-                updatedAttendance[regNumber] = {
-                    ...updatedAttendance[regNumber],
-                    status: true
-                };
-                newAutoMarkedStudents.push(regNumber);
+                if (newAutoMarkedStudents.length > 0) {
+                    setAutoMarkedStudents(newAutoMarkedStudents);
+                    console.log(`Automatically marked ${newAutoMarkedStudents.length} students as present:`, newAutoMarkedStudents);
+                    sessionStorage.setItem(lastProcessedKey, detectedIdsString);
                 }
-            });
-            
-            if (newAutoMarkedStudents.length > 0) {
-                setAttendanceData(updatedAttendance);
-                setAutoMarkedStudents(newAutoMarkedStudents);
-                console.log(`Automatically marked ${newAutoMarkedStudents.length} students as present:`, newAutoMarkedStudents);
-            }
             }
         }
-    }, [detectedStudentIds, records]);
+    }, [detectedStudentIds, records, section]);
 
     const handleSectionChange = (e) => {
         setSection(e.target.value);
