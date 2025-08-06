@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useImperativeHandle, forwardRef } from "react";
 import { CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/solid';
 import { ArrowDownTrayIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import api from "../api/axiosInstance";
 
 const Button = ({ status, onChange, recordId }) => {
     const [checked, setChecked] = useState(status);
@@ -79,17 +80,11 @@ const AttendanceTable = forwardRef(({ detectedStudentIds = [] }, ref) => {
     // Fetch available sections
     useEffect(() => {
         setIsLoading(true);
-        fetch("http://127.0.0.1:8000/sections", { headers: { "Accept": "application/json" } })
-            .then(res => {
-                if (!res.ok) {
-                    throw new Error("Network response was not ok");
-                }
-                return res.json();
-            })
-            .then(data => {
-                setSections(data.sections);
-                if (data.sections.length > 0) {
-                    setSection(data.sections[0]);
+        api.get("/sections")
+            .then(response => {
+                setSections(response.data.sections);
+                if (response.data.sections.length > 0) {
+                    setSection(response.data.sections[0]);
                 }
                 setIsLoading(false);
                 setError(null);
@@ -105,18 +100,14 @@ const AttendanceTable = forwardRef(({ detectedStudentIds = [] }, ref) => {
     useEffect(() => {
         if (section) {
             setIsLoading(true);
-            fetch(`http://127.0.0.1:8000/class/${section}`)
-                .then(res => {
-                    if (!res.ok) throw new Error("Failed to fetch records");
-                    return res.json();
-                })
-                .then(data => {
-                    setRecords(data);
-                    setFilteredRecords(data);
+            api.get(`/class/${section}`)
+                .then(response => {
+                    setRecords(response.data);
+                    setFilteredRecords(response.data);
                     
                     // Initialize attendance data object with current status
                     const initialAttendance = {};
-                    data.forEach(record => {
+                    response.data.forEach(record => {
                         initialAttendance[record.RegisterNumber] = {
                             status: record.status,
                             name: record.FullName,
@@ -252,20 +243,12 @@ const AttendanceTable = forwardRef(({ detectedStudentIds = [] }, ref) => {
         };
 
         try {
-            const response = await fetch("http://127.0.0.1:8000/save-attendance-csv", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(attendancePayload)
+            const response = await api.post("/save-attendance-csv", attendancePayload, {
+                responseType: 'blob' // Important for file downloads
             });
 
-            if (!response.ok) {
-                throw new Error(`Server responded with status: ${response.status}`);
-            }
-
             // For file download, get response as blob
-            const blob = await response.blob();
+            const blob = response.data;
             
             // Create a temporary URL for the blob
             const url = window.URL.createObjectURL(blob);
@@ -274,7 +257,7 @@ const AttendanceTable = forwardRef(({ detectedStudentIds = [] }, ref) => {
             const a = document.createElement('a');
             
             // Get filename from Content-Disposition header if available
-            const contentDisposition = response.headers.get('Content-Disposition');
+            const contentDisposition = response.headers['content-disposition'];
             let filename = `attendance_${section}_${today.replace(/-/g, '')}.csv`;
             
             if (contentDisposition) {

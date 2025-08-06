@@ -12,12 +12,11 @@ const getServerBaseUrl = () => {
 const SERVER_BASE_URL = getServerBaseUrl();
 
 console.log("API connecting to:", SERVER_BASE_URL);
-// console.log("Environment details:", {
-//   viteEnv: import.meta.env,
-//   hasViteServerUrl: Boolean(import.meta.env && import.meta.env.VITE_SERVER_BASE_URL),
-//   windowLocation: window.location.toString()
-// });
-
+console.log("Environment details:", {
+  viteEnv: import.meta.env,
+  hasViteServerUrl: Boolean(import.meta.env && import.meta.env.VITE_SERVER_BASE_URL),
+  windowLocation: window.location.toString()
+});
 
 const api = axios.create({
   baseURL: SERVER_BASE_URL,
